@@ -14,7 +14,7 @@ import (
 	"pkg.deepin.io/lib/log"
 )
 
-var logger = log.NewLogger("ab-recovery/system")
+var logger = log.NewLogger("ab-recovery")
 
 const (
 	configFile       = "/etc/deepin/ab-recovery.json"
@@ -90,8 +90,14 @@ func backup(backupUuid string) error {
 	}()
 
 	logger.Debug("run rsync...")
-	cmd := exec.Command("rsync", "-va", "--delete-after", "--exclude-from="+tmpExcludeFile,
+	var rsyncArgs []string
+	if logger.GetLogLevel() == log.LevelDebug {
+		rsyncArgs = append(rsyncArgs, "-v")
+	}
+	rsyncArgs = append(rsyncArgs, "-a", "--delete-after", "--exclude-from="+tmpExcludeFile,
 		"/", backupMountPoint+"/")
+
+	cmd := exec.Command("rsync", rsyncArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()

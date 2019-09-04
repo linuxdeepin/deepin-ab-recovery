@@ -9,7 +9,7 @@ Homepage: http://github.com/linuxdeepin
 
 Package: deepin-ab-recovery
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, rsync, grub-common, mount
 Recommends:
 Conflicts:
 Breaks:
