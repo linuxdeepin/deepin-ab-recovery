@@ -2,111 +2,54 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
+
+	"pkg.deepin.io/lib/dbusutil"
+	"pkg.deepin.io/lib/log"
 )
 
-type Config struct {
-	Current string
-	Backup  string
-}
-
-func loadConfig(filename string) (*Config, error) {
-	content, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-	var c Config
-	err = json.Unmarshal(content, &c)
-	if err != nil {
-		return nil, err
-	}
-	return &c, nil
-}
-
-func (c *Config) save(filename string) error {
-	content, err := json.Marshal(c)
-	if err != nil {
-		return err
-	}
-	return ioutil.WriteFile(filename, content, 0644)
-}
-
-func (c *Config) check() error {
-	if !hasDiskDevice(c.Current) {
-		return fmt.Errorf("not found current disk %q", c.Current)
-	}
-
-	if !hasDiskDevice(c.Backup) {
-		return fmt.Errorf("not found backup disk %q", c.Backup)
-	}
-
-	return nil
-}
+var logger = log.NewLogger("ab-recovery/system")
 
 const (
-	configFile       = "/etc/deepin/recovery.json"
-	backupMountPoint = "/deepin-recovery-backup"
-	grubCfgFile      = "/etc/default/grub.d/11_deepin_recovery.cfg"
+	configFile       = "/etc/deepin/ab-recovery.json"
+	backupMountPoint = "/deepin-ab-recovery-backup"
+	grubCfgFile      = "/etc/default/grub.d/11_deepin_ab_recovery.cfg"
 )
 
 func main() {
-	log.SetFlags(log.Lshortfile)
-
-	cfg, err := loadConfig(configFile)
+	service, err := dbusutil.NewSystemService()
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
-	err = cfg.check()
+
+	m := newManager(service)
+	err = service.Export(dbusPath, m)
 	if err != nil {
-		log.Fatal(err)
+		logger.Warning(err)
 	}
 
-	log.Println("current:", cfg.Current)
-	log.Println("backup:", cfg.Backup)
-
-	if len(os.Args) != 2 {
-		os.Exit(1)
+	err = service.RequestName(dbusServiceName)
+	if err != nil {
+		logger.Fatal(err)
 	}
 
-	arg := os.Args[1]
-	if arg == "backup" {
-		err := backup(cfg)
-		if err != nil {
-			log.Fatal(err)
-		}
-	} else if arg == "restore" {
-		err := restore(cfg)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
+	service.SetAutoQuitHandler(3*time.Minute, m.canQuit)
+	service.Wait()
 }
 
-func backup(cfg *Config) error {
-	rootUuid, err := getRootUuid()
-	if err != nil {
-		return err
-	}
-	log.Println("root uuid:", rootUuid)
-
-	if rootUuid != cfg.Current {
-		return errors.New("rootUuid is not current")
-	}
-
-	backupUuid := cfg.Backup
+func backup(backupUuid string) error {
 	backupDevice, err := getDeviceByUuid(backupUuid)
 	if err != nil {
 		return err
 	}
 
-	log.Println("backup device:", backupDevice)
+	logger.Debug("backup device:", backupDevice)
 
 	err = os.Mkdir(backupMountPoint, 0755)
 	if err != nil {
@@ -115,7 +58,7 @@ func backup(cfg *Config) error {
 	defer func() {
 		err = os.Remove(backupMountPoint)
 		if err != nil {
-			log.Println("WARN:", err)
+			logger.Warning("failed to remove backup mount point:", err)
 		}
 	}()
 
@@ -126,10 +69,11 @@ func backup(cfg *Config) error {
 	defer func() {
 		err := exec.Command("umount", backupMountPoint).Run()
 		if err != nil {
-			log.Println("WARN:", err)
+			logger.Warning("failed to unmount backup directory:", err)
 		}
 	}()
 
+	// TODO: 正确处理 /boot
 	skipDirs := []string{
 		"/sys", "/dev", "/proc", "/run", "/media", "/home", "/tmp", "/boot",
 	}
@@ -141,11 +85,11 @@ func backup(cfg *Config) error {
 	defer func() {
 		err := os.Remove(tmpExcludeFile)
 		if err != nil {
-			log.Println("WARN:", err)
+			logger.Warning("failed to remove temporary exclude file:", err)
 		}
 	}()
 
-	log.Println("run rsync...")
+	logger.Debug("run rsync...")
 	cmd := exec.Command("rsync", "-va", "--delete-after", "--exclude-from="+tmpExcludeFile,
 		"/", backupMountPoint+"/")
 	cmd.Stdout = os.Stdout
@@ -177,10 +121,7 @@ func backup(cfg *Config) error {
 		return err
 	}
 
-	cmd = exec.Command("update-grub")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Run()
+	err = runUpdateGrub()
 	if err != nil {
 		return err
 	}
@@ -188,17 +129,14 @@ func backup(cfg *Config) error {
 	return nil
 }
 
+func runUpdateGrub() error {
+	cmd := exec.Command("grub-mkconfig", "-o", "/boot/grub/grub.cfg")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 func restore(cfg *Config) error {
-	rootUuid, err := getRootUuid()
-	if err != nil {
-		return err
-	}
-	log.Println("root uuid:", rootUuid)
-
-	if rootUuid != cfg.Backup {
-		return errors.New("rootUuid is not backup")
-	}
-
 	currentDevice, err := getDeviceByUuid(cfg.Current)
 	if err != nil {
 		return err
@@ -209,10 +147,7 @@ func restore(cfg *Config) error {
 		return err
 	}
 
-	cmd := exec.Command("update-grub")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Run()
+	err = runUpdateGrub()
 	if err != nil {
 		return err
 	}

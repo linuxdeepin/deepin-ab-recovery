@@ -1,0 +1,4 @@
+out/bin/deepin-ab-recovery /usr/bin/
+misc/11_deepin_ab_recovery /etc/grub.d/
+misc/com.deepin.ABRecovery.conf /usr/share/dbus-1/system.d/
+misc/com.deepin.ABRecovery.service /usr/share/dbus-1/system-services/

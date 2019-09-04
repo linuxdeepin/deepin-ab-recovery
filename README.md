@@ -2,15 +2,15 @@
 
 ## grub 脚本
 
-`11_deepin_recovery` 脚本放到文件夹 `/etc/grub.d/` 下。
+`11_deepin_ab_recovery` 脚本放到文件夹 `/etc/grub.d/` 下。
 
 ## 配置文件
 
-配置文件 `/etc/deepin/recovery.json`，json 对象如
+配置文件 `/etc/deepin/ab-recovery.json`，json 对象如
 ```json
 {
 	"Current": "uuid1",
-	"Backup": "uuid2",
+	"Backup": "uuid2"
 }
 ```
 Current 字段为正在使用分区的 uuid，Backup 字段为备份分区的 uuid。

@@ -1,0 +1,16 @@
+Source: deepin-ab-recovery
+Section: admin
+Priority: extra
+Maintainer: Deepin Packages Builder <packages@deepin.com>
+Build-Depends: debhelper (>= 9), golang-go,
+ golang-dlib-dev
+Standards-Version: 3.9.5
+Homepage: http://github.com/linuxdeepin
+
+Package: deepin-ab-recovery
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Recommends:
+Conflicts:
+Breaks:
+Description: deepin AB Recovery

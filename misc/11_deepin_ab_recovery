@@ -22,7 +22,7 @@ else
   CLASS="--class $(echo ${GRUB_DISTRIBUTOR} | tr 'A-Z' 'a-z' | cut -d' ' -f1|LC_ALL=C sed 's,[^[:alnum:]_],_,g') ${CLASS}"
 fi
 
-. /etc/default/grub.d/11_deepin_recovery.cfg
+. /etc/default/grub.d/11_deepin_ab_recovery.cfg
 
 if [ -z "$DEEPIN_RECOVERY_BACKUP_UUID" ]; then
 	exit 0
