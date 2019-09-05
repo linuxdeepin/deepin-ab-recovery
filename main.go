@@ -23,6 +23,11 @@ const (
 )
 
 func main() {
+	err := os.Setenv("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
+	if err != nil {
+		logger.Warning(err)
+	}
+
 	service, err := dbusutil.NewSystemService()
 	if err != nil {
 		logger.Fatal(err)
