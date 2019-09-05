@@ -8,10 +8,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+	"syscall"
 	"time"
 
 	"pkg.deepin.io/lib/dbusutil"
 	"pkg.deepin.io/lib/log"
+	"pkg.deepin.io/lib/utils"
 )
 
 var logger = log.NewLogger("ab-recovery")
@@ -78,7 +81,6 @@ func backup(backupUuid string) error {
 		}
 	}()
 
-	// TODO: 正确处理 /boot
 	skipDirs := []string{
 		"/sys", "/dev", "/proc", "/run", "/media", "/home", "/tmp", "/boot",
 	}
@@ -126,8 +128,12 @@ func backup(backupUuid string) error {
 		return err
 	}
 
+	kFiles, err := backupKernel()
+	if err != nil {
+		return err
+	}
 	// generate grub config
-	err = writeGrubCfgBackup(grubCfgFile, backupUuid, backupDevice)
+	err = writeGrubCfgBackup(grubCfgFile, backupUuid, backupDevice, kFiles)
 	if err != nil {
 		return err
 	}
@@ -138,6 +144,173 @@ func backup(backupUuid string) error {
 	}
 
 	return nil
+}
+
+const (
+	kernelBackupDir = "/boot/deepin-ab-recovery"
+)
+
+func backupKernel() (kFiles *kernelFiles, err error) {
+	err = os.RemoveAll(kernelBackupDir + ".old")
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return
+		}
+	}
+
+	err = os.Rename(kernelBackupDir, kernelBackupDir+".old")
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return
+		}
+	}
+
+	err = os.Mkdir(kernelBackupDir, 0755)
+	if err != nil {
+		return
+	}
+
+	// find current kernel
+	utsName, err := uname()
+	if err != nil {
+		return
+	}
+	kFiles, err = findKernelFiles(utsName.release,
+		utsName.machine)
+	if err != nil {
+		return
+	}
+
+	logger.Debug("found linux:", kFiles.linux)
+	logger.Debug("found initrd:", kFiles.initrd)
+
+	// copy linux
+	linuxBackup := filepath.Join(kernelBackupDir, filepath.Base(kFiles.linux))
+	err = utils.CopyFile(kFiles.linux, linuxBackup)
+	if err != nil {
+		return
+	}
+
+	// copy initrd
+	initrdBackup := filepath.Join(kernelBackupDir, filepath.Base(kFiles.initrd))
+	err = utils.CopyFile(kFiles.initrd, initrdBackup)
+	if err != nil {
+		return
+	}
+
+	err = os.RemoveAll(kernelBackupDir + ".old")
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return
+		}
+	}
+
+	return
+}
+
+type kernelFiles struct {
+	linux  string
+	initrd string
+}
+
+func getGenKernelArch(machine string) string {
+	switch machine {
+	case "i386", "i686":
+		return "x86"
+	case "mips", "mips64":
+		return "mips"
+	case "mipsel", "mips64el":
+		return "mips"
+	default:
+		if strings.HasPrefix(machine, "arm") {
+			return "arm"
+		}
+		return machine
+	}
+}
+
+func findKernelFiles(release, machine string) (*kernelFiles, error) {
+	var result kernelFiles
+	prefixes := []string{"vmlinuz-", "vmlinux-", "kernel-"}
+	switch machine {
+	case "i386", "i686", "x86_64":
+		prefixes = []string{"vmlinuz-", "kernel-"}
+	}
+
+	// linux
+	for _, prefix := range prefixes {
+		filename := filepath.Join("/boot", prefix+release)
+		_, err := os.Stat(filename)
+		if err != nil {
+			continue
+		}
+
+		result.linux = filename
+		break
+	}
+
+	if result.linux == "" {
+		return nil, errors.New("findKernelFiles: not found linux")
+	}
+
+	// initrd
+	altVersion := strings.TrimSuffix(release, ".old")
+	genKernelArch := getGenKernelArch(machine)
+	replacer := strings.NewReplacer("${version}", release,
+		"${altVersion}", altVersion,
+		"${genKernelArch}", genKernelArch)
+	for _, format := range []string{
+		"initrd.img-${version}", "initrd-${version}.img", "initrd-${version}.gz",
+		"initrd-${version}", "initramfs-${version}.img",
+		"initrd.img-${altVersion}", "initrd-${altVersion}.img",
+		"initrd-${altVersion}", "initramfs-${altVersion}.img",
+		"initramfs-genkernel-${version}",
+		"initramfs-genkernel-${altVersion}",
+		"initramfs-genkernel-${genKernelArch}-${version}",
+		"initramfs-genkernel-${genKernelArch}-${altVersion}",
+	} {
+		filename := filepath.Join("/boot", replacer.Replace(format))
+		_, err := os.Stat(filename)
+		if err != nil {
+			continue
+		}
+
+		result.initrd = filename
+		break
+	}
+	if result.initrd == "" {
+		return nil, errors.New("findKernelFiles: not found initrd")
+	}
+
+	return &result, nil
+}
+
+type utsName struct {
+	machine string
+	release string
+}
+
+func uname() (*utsName, error) {
+	var buf syscall.Utsname
+	err := syscall.Uname(&buf)
+	if err != nil {
+		return nil, err
+	}
+	var result utsName
+	result.release = charsToString(buf.Release[:])
+	result.machine = charsToString(buf.Machine[:])
+	return &result, nil
+}
+
+func charsToString(ca []int8) string {
+	s := make([]byte, 0, len(ca))
+	for _, c := range ca {
+		if byte(c) == 0 {
+			break
+		}
+		s = append(s, byte(c))
+	}
+	return string(s)
 }
 
 func runUpdateGrub() error {
@@ -187,16 +360,20 @@ func writeGrubCfgRestore(filename, uuid, device string) error {
 	return err
 }
 
-func writeGrubCfgBackup(filename, backupUuid, backupDevice string) error {
+func writeGrubCfgBackup(filename, backupUuid, backupDevice string, kFiles *kernelFiles) error {
 	dir := filepath.Dir(filename)
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
 		return err
 	}
+	const varPrefix = "DEEPIN_AB_RECOVERY_"
 	var buf bytes.Buffer
-	buf.WriteString("DEEPIN_RECOVERY_BACKUP_UUID=" + backupUuid + "\n")
+	buf.WriteString(varPrefix + "BACKUP_UUID=" + backupUuid + "\n")
 	buf.WriteString(fmt.Sprintf("GRUB_OS_PROBER_SKIP_LIST=\"$GRUB_OS_PROBER_SKIP_LIST %s@%s\"\n",
 		backupUuid, backupDevice))
+	buf.WriteString(varPrefix + "LINUX=\"" + filepath.Join(kernelBackupDir,
+		filepath.Base(kFiles.linux)) + "\"\n")
+	buf.WriteString(varPrefix + "INITRD=\"" + filepath.Base(kFiles.initrd) + "\"\n")
 
 	err = ioutil.WriteFile(filename, buf.Bytes(), 0644)
 	return err

@@ -24,11 +24,11 @@ fi
 
 . /etc/default/grub.d/11_deepin_ab_recovery.cfg
 
-if [ -z "$DEEPIN_RECOVERY_BACKUP_UUID" ]; then
+if [ -z "$DEEPIN_AB_RECOVERY_BACKUP_UUID" ]; then
 	exit 0
 fi
 
-GRUB_DEVICE_UUID=$DEEPIN_RECOVERY_BACKUP_UUID
+GRUB_DEVICE_UUID=$DEEPIN_AB_RECOVERY_BACKUP_UUID
 boot_device_id=$GRUB_DEVICE_UUID
 
 LINUX_ROOT_DEVICE=UUID=${GRUB_DEVICE_UUID}
@@ -143,74 +143,20 @@ case "x$machine" in
 	done ;;
 esac
 
-case "$machine" in
-    i?86) GENKERNEL_ARCH="x86" ;;
-    mips|mips64) GENKERNEL_ARCH="mips" ;;
-    mipsel|mips64el) GENKERNEL_ARCH="mipsel" ;;
-    arm*) GENKERNEL_ARCH="arm" ;;
-    *) GENKERNEL_ARCH="$machine" ;;
-esac
-
 prepare_boot_cache=
 prepare_root_cache=
 title_correction_code=
 
 
-while [ "x$list" != "x" ] ; do
-  linux=`version_find_latest $list`
-  case $linux in
-    *.efi.signed)
-      # We handle these in linux_entry.
-      list=`echo $list | tr ' ' '\n' | grep -vx $linux | tr '\n' ' '`
-      continue
-      ;;
-  esac
-  gettext_printf "Found linux image: %s\n" "$linux" >&2
-  basename=`basename $linux`
-  dirname=`dirname $linux`
-  rel_dirname=`make_system_path_relative_to_its_root $dirname`
-  version=`echo $basename | sed -e "s,^[^0-9]*-,,g"`
-  alt_version=`echo $version | sed -e "s,\.old$,,g"`
-  linux_root_device_thisversion="${LINUX_ROOT_DEVICE}"
+linux=$DEEPIN_AB_RECOVERY_LINUX
+initrd=$DEEPIN_AB_RECOVERY_INITRD
+basename=`basename $linux`
+dirname=`dirname $linux`
+rel_dirname=`make_system_path_relative_to_its_root $dirname`
+version=`echo $basename | sed -e "s,^[^0-9]*-,,g"`
+linux_root_device_thisversion="${LINUX_ROOT_DEVICE}"
 
-  initrd=
-  for i in "initrd.img-${version}" "initrd-${version}.img" "initrd-${version}.gz" \
-	   "initrd-${version}" "initramfs-${version}.img" \
-	   "initrd.img-${alt_version}" "initrd-${alt_version}.img" \
-	   "initrd-${alt_version}" "initramfs-${alt_version}.img" \
-	   "initramfs-genkernel-${version}" \
-	   "initramfs-genkernel-${alt_version}" \
-	   "initramfs-genkernel-${GENKERNEL_ARCH}-${version}" \
-	   "initramfs-genkernel-${GENKERNEL_ARCH}-${alt_version}"; do
-    if test -e "${dirname}/${i}" ; then
-      initrd="$i"
-      break
-    fi
-  done
+date=`date -Idate`
 
-  config=
-  for i in "${dirname}/config-${version}" "${dirname}/config-${alt_version}" "/etc/kernels/kernel-config-${version}" ; do
-    if test -e "${i}" ; then
-      config="${i}"
-      break
-    fi
-  done
-
-  initramfs=
-  if test -n "${config}" ; then
-      initramfs=`grep CONFIG_INITRAMFS_SOURCE= "${config}" | cut -f2 -d= | tr -d \"`
-  fi
-
-  if test -n "${initrd}" ; then
-    gettext_printf "Found initrd image: %s\n" "${dirname}/${initrd}" >&2
-  elif test -z "${initramfs}" ; then
-    # "UUID=" and "ZFS=" magic is parsed by initrd or initramfs.  Since there's
-    # no initrd or builtin initramfs, it can't work here.
-    linux_root_device_thisversion=${GRUB_DEVICE}
-  fi
-
-  linux_entry "${OS} (Recovery)" "${version}" simple \
-    "${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT}"
-
-  break
-done
+linux_entry "${OS} (Recovery ${date})" "${version}" simple \
+  "${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT}"
