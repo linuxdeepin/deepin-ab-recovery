@@ -113,7 +113,7 @@ func backup(backupUuid string) error {
 	}
 
 	for _, dir := range skipDirs {
-		err = os.Mkdir(dir, 0755)
+		err = os.Mkdir(filepath.Join(backupMountPoint, dir), 0755)
 		if err != nil {
 			if os.IsExist(err) {
 				continue
