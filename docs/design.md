@@ -5,6 +5,16 @@
 为了满足需求：更新前把A系统同步到B系统，创建GRUB回退系统选项；
 选择回退系统选项后，对调 A/B 系统角色；
 
+## 分区要求
+
+为使此工具正确工作，需要满足以下分区要求：
+
+- 一个根分区和一个候选根分区，根分区挂载在 /，候选根分区不挂载
+
+- 一个分区挂载在 /boot
+
+- 一个分区挂载在 /home
+
 ## 配置文件
 
 配置文件 `/etc/deepin/ab-recovery.json`，json 对象如
@@ -26,8 +36,6 @@ Current 字段为正在使用分区的 uuid，Backup 字段为备份分区的 uu
 安装位置: /etc/grub.d/11_deepin_ab_recovery
 
 这个脚本被 grub-mkconfig 命令执行，执行顺序需要在 10_linux 后和在 30_os-prober 之前。此脚本会读取 配置文件 /etc/default/grub.d/11_deepin_ab_recovery.cfg 中的配置。
-
-
 
 
 ## 备份过程
