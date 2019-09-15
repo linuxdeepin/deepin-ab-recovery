@@ -16,6 +16,10 @@ Restoring bool 是否正在恢复
 
 ConfigValid bool 是否配置文件正确无误
 
+BackupTime int64 备份时间 unix 时间戳
+
+BackupVersion string 备份的deepin系统版本
+
 ## 方法
 
 CanBackup() -> (bool)

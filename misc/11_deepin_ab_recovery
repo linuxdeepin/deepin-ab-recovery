@@ -8,20 +8,6 @@ export TEXTDOMAINDIR="${datarootdir}/locale"
 
 CLASS="--class gnu-linux --class gnu --class os"
 
-if [ "x${GRUB_DISTRIBUTOR}" = "x" ] ; then
-  OS=GNU/Linux
-else
-  case ${GRUB_DISTRIBUTOR} in
-    Ubuntu|Kubuntu)
-      OS="${GRUB_DISTRIBUTOR}"
-      ;;
-    *)
-      OS="${GRUB_DISTRIBUTOR} GNU/Linux"
-      ;;
-  esac
-  CLASS="--class $(echo ${GRUB_DISTRIBUTOR} | tr 'A-Z' 'a-z' | cut -d' ' -f1|LC_ALL=C sed 's,[^[:alnum:]_],_,g') ${CLASS}"
-fi
-
 . /etc/default/grub.d/11_deepin_ab_recovery.cfg
 
 if [ -z "$DEEPIN_AB_RECOVERY_BACKUP_UUID" ]; then
@@ -155,8 +141,7 @@ dirname=`dirname $linux`
 rel_dirname=`make_system_path_relative_to_its_root $dirname`
 version=`echo $basename | sed -e "s,^[^0-9]*-,,g"`
 linux_root_device_thisversion="${LINUX_ROOT_DEVICE}"
+menu_entry=$(printf "$(gettext -d deepin-ab-recovery 'Roll back to deepin %s')" $DEEPIN_AB_RECOVERY_VERSION)
 
-date=`date -Idate`
-
-linux_entry "${OS} (Recovery ${date})" "${version}" simple \
+linux_entry "$menu_entry" "${version}" simple \
   "${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT}"

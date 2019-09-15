@@ -40,3 +40,29 @@ func (v *Manager) setPropConfigValid(value bool) (changed bool) {
 func (v *Manager) emitPropChangedConfigValid(value bool) error {
 	return v.service.EmitPropertyChanged(v, "ConfigValid", value)
 }
+
+func (v *Manager) setPropBackupVersion(value string) (changed bool) {
+	if v.BackupVersion != value {
+		v.BackupVersion = value
+		v.emitPropChangedBackupVersion(value)
+		return true
+	}
+	return false
+}
+
+func (v *Manager) emitPropChangedBackupVersion(value string) error {
+	return v.service.EmitPropertyChanged(v, "BackupVersion", value)
+}
+
+func (v *Manager) setPropBackupTime(value int64) (changed bool) {
+	if v.BackupTime != value {
+		v.BackupTime = value
+		v.emitPropChangedBackupTime(value)
+		return true
+	}
+	return false
+}
+
+func (v *Manager) emitPropChangedBackupTime(value int64) error {
+	return v.service.EmitPropertyChanged(v, "BackupTime", value)
+}

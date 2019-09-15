@@ -1,0 +1,11 @@
+[main]
+host = https://www.transifex.com
+minimum_perc = 80
+mode = developer
+
+[deepin-desktop-environment.deepin-ab-recovery]
+file_filter = misc/po/<lang>.po
+source_file = misc/po/deepin-ab-recovery.pot
+source_lang = en
+type = PO
+
