@@ -1,17 +1,20 @@
 package main
 
 import (
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"time"
 )
 
 type Config struct {
 	Current string
 	Backup  string
+	Version string     `json:",omitempty"`
+	Time    *time.Time `json:",omitempty"`
 }
 
-func loadConfig(filename string, c *Config)  error {
+func loadConfig(filename string, c *Config) error {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return err
@@ -42,4 +45,3 @@ func (c *Config) check() error {
 
 	return nil
 }
-

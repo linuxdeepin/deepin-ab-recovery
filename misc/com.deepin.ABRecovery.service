@@ -1,5 +1,5 @@
 [D-BUS Service]
 Name=com.deepin.ABRecovery
-Exec=/usr/bin/deepin-ab-recovery
+Exec=/usr/lib/deepin-daemon/ab-recovery
 User=root
 

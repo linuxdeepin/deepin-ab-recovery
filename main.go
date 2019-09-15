@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"pkg.deepin.io/lib/dbusutil"
+	"pkg.deepin.io/lib/keyfile"
 	"pkg.deepin.io/lib/log"
 	"pkg.deepin.io/lib/utils"
 )
@@ -23,6 +24,7 @@ const (
 	configFile       = "/etc/deepin/ab-recovery.json"
 	backupMountPoint = "/deepin-ab-recovery-backup"
 	grubCfgFile      = "/etc/default/grub.d/11_deepin_ab_recovery.cfg"
+	kernelBackupDir  = "/boot/deepin-ab-recovery"
 )
 
 func main() {
@@ -51,7 +53,8 @@ func main() {
 	service.Wait()
 }
 
-func backup(backupUuid string) error {
+func backup(cfg *Config) error {
+	backupUuid := cfg.Backup
 	backupDevice, err := getDeviceByUuid(backupUuid)
 	if err != nil {
 		return err
@@ -96,6 +99,20 @@ func backup(backupUuid string) error {
 		}
 	}()
 
+	deepinVersion, err := getDeepinVersion("/etc/deepin-version")
+	if err != nil {
+		logger.Warning(err)
+		deepinVersion = "unknown"
+	}
+
+	now := time.Now()
+	cfg.Time = &now
+	cfg.Version = deepinVersion
+	err = cfg.save(configFile)
+	if err != nil {
+		return err
+	}
+
 	logger.Debug("run rsync...")
 	var rsyncArgs []string
 	if logger.GetLogLevel() == log.LevelDebug {
@@ -132,8 +149,9 @@ func backup(backupUuid string) error {
 	if err != nil {
 		return err
 	}
+
 	// generate grub config
-	err = writeGrubCfgBackup(grubCfgFile, backupUuid, backupDevice, kFiles)
+	err = writeGrubCfgBackup(grubCfgFile, backupUuid, backupDevice, deepinVersion, kFiles)
 	if err != nil {
 		return err
 	}
@@ -146,9 +164,14 @@ func backup(backupUuid string) error {
 	return nil
 }
 
-const (
-	kernelBackupDir = "/boot/deepin-ab-recovery"
-)
+func getDeepinVersion(filename string) (string, error) {
+	kf := keyfile.NewKeyFile()
+	err := kf.LoadFromFile(filename)
+	if err != nil {
+		return "", err
+	}
+	return kf.GetString("Release", "Version")
+}
 
 func backupKernel() (kFiles *kernelFiles, err error) {
 	err = os.RemoveAll(kernelBackupDir + ".old")
@@ -338,6 +361,8 @@ func restore(cfg *Config) error {
 
 	// swap current and backup
 	cfg.Current, cfg.Backup = cfg.Backup, cfg.Current
+	cfg.Time = nil
+	cfg.Version = ""
 	err = cfg.save(configFile)
 	if err != nil {
 		return err
@@ -360,7 +385,7 @@ func writeGrubCfgRestore(filename, uuid, device string) error {
 	return err
 }
 
-func writeGrubCfgBackup(filename, backupUuid, backupDevice string, kFiles *kernelFiles) error {
+func writeGrubCfgBackup(filename, backupUuid, backupDevice, deepinVersion string, kFiles *kernelFiles) error {
 	dir := filepath.Dir(filename)
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
@@ -374,6 +399,7 @@ func writeGrubCfgBackup(filename, backupUuid, backupDevice string, kFiles *kerne
 	buf.WriteString(varPrefix + "LINUX=\"" + filepath.Join(kernelBackupDir,
 		filepath.Base(kFiles.linux)) + "\"\n")
 	buf.WriteString(varPrefix + "INITRD=\"" + filepath.Base(kFiles.initrd) + "\"\n")
+	buf.WriteString(varPrefix + "VERSION=\"" + deepinVersion + "\"\n")
 
 	err = ioutil.WriteFile(filename, buf.Bytes(), 0644)
 	return err

@@ -19,11 +19,13 @@ const (
 
 //go:generate dbusutil-gen -type Manager manager.go
 type Manager struct {
-	service     *dbusutil.Service
-	PropsMu     sync.RWMutex
-	BackingUp   bool
-	Restoring   bool
-	ConfigValid bool
+	service       *dbusutil.Service
+	PropsMu       sync.RWMutex
+	BackingUp     bool
+	Restoring     bool
+	ConfigValid   bool
+	BackupVersion string
+	BackupTime    int64
 
 	cfg Config
 
@@ -61,6 +63,14 @@ func newManager(service *dbusutil.Service) *Manager {
 		logger.Warning(err)
 	}
 	m.ConfigValid = err == nil
+
+	if m.ConfigValid {
+		if m.cfg.Time != nil {
+			m.BackupTime = m.cfg.Time.Unix()
+		}
+		m.BackupVersion = m.cfg.Version
+	}
+
 	return m
 }
 
@@ -131,13 +141,14 @@ func (m *Manager) startBackup() error {
 		m.emitSignalJobEnd(jobKindBackup, err)
 
 		m.PropsMu.Lock()
-		m.BackingUp = false
+
+		m.setPropBackingUp(false)
+		backupTime := m.cfg.Time.Unix()
+		m.setPropBackupTime(backupTime)
+		m.setPropBackupVersion(m.cfg.Version)
+
 		m.PropsMu.Unlock()
 
-		err = m.emitPropChangedBackingUp(false)
-		if err != nil {
-			logger.Warning(err)
-		}
 	}()
 
 	return nil
@@ -197,7 +208,7 @@ func (m *Manager) StartRestore() *dbus.Error {
 }
 
 func (m *Manager) backup() error {
-	return backup(m.cfg.Backup)
+	return backup(&m.cfg)
 }
 
 func (m *Manager) restore() error {
