@@ -8,7 +8,12 @@ export TEXTDOMAINDIR="${datarootdir}/locale"
 
 CLASS="--class gnu-linux --class gnu --class os"
 
-. /etc/default/grub.d/11_deepin_ab_recovery.cfg
+ab_recovery_cfg=/etc/default/grub.d/11_deepin_ab_recovery.cfg
+if [ -f $ab_recovery_cfg ]; then
+    . $ab_recovery_cfg
+else
+    exit 0
+fi
 
 if [ -z "$DEEPIN_AB_RECOVERY_BACKUP_UUID" ]; then
 	exit 0
@@ -141,7 +146,8 @@ dirname=`dirname $linux`
 rel_dirname=`make_system_path_relative_to_its_root $dirname`
 version=`echo $basename | sed -e "s,^[^0-9]*-,,g"`
 linux_root_device_thisversion="${LINUX_ROOT_DEVICE}"
-menu_entry=$(printf "$(gettext -d deepin-ab-recovery 'Roll back to deepin %s')" $DEEPIN_AB_RECOVERY_VERSION)
+backup_time=$(date +%c -d @$DEEPIN_AB_RECOVERY_BACKUP_TIME)
+menu_entry=$(printf "$(gettext -d deepin-ab-recovery 'Roll back to deepin %s (%s)')" "$DEEPIN_AB_RECOVERY_VERSION" "$backup_time")
 
 linux_entry "$menu_entry" "${version}" simple \
   "${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT}"

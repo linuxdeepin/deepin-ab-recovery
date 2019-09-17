@@ -26,3 +26,6 @@ translate: $(addsuffix /LC_MESSAGES/deepin-ab-recovery.mo, $(addprefix out/local
 
 check_code_quality:
 	go vet .
+
+pot:
+	xgettext -kTr --language=C -o misc/po/deepin-ab-recovery.pot *.go 

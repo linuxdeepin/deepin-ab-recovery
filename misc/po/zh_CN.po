@@ -19,5 +19,18 @@ msgstr ""
 "Language: zh_CN\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-msgid "Roll back to deepin %s"
-msgstr "回退到deepin %s"
+msgid "Control Center"
+msgstr "控制中心"
+
+#: manager.go:21
+#, c-format
+msgid "Roll back to deepin %s (%s)"
+msgstr "回退到deepin %s（%s）"
+
+#: manager.go:232
+msgid "Backing up the system"
+msgstr "正在备份系统"
+
+#: manager.go:238
+msgid "Restoring the system"
+msgstr "正在恢复系统"

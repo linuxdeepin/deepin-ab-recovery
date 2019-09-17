@@ -8,15 +8,18 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	login1 "github.com/linuxdeepin/go-dbus-factory/org.freedesktop.login1"
+	"pkg.deepin.io/dde/api/inhibit_hint"
 	"pkg.deepin.io/lib/dbus1"
 	"pkg.deepin.io/lib/dbusutil"
 	"pkg.deepin.io/lib/keyfile"
 	"pkg.deepin.io/lib/log"
+	"pkg.deepin.io/lib/procfs"
 	"pkg.deepin.io/lib/utils"
 )
 
@@ -42,6 +45,14 @@ func main() {
 
 	m := newManager(service)
 	err = service.Export(dbusPath, m)
+	if err != nil {
+		logger.Warning(err)
+	}
+
+	ihObj := inhibit_hint.New("deepin-ab-recovery")
+	ihObj.SetIcon("dde-control-center")
+	ihObj.SetName(Tr("Control Center"))
+	err = ihObj.Export(service)
 	if err != nil {
 		logger.Warning(err)
 	}
@@ -72,7 +83,7 @@ func isMounted(mountPoint string) (bool, error) {
 	return false, nil
 }
 
-func backup(cfg *Config) error {
+func backup(cfg *Config, envVars []string) error {
 	backupUuid := cfg.Backup
 	backupDevice, err := getDeviceByUuid(backupUuid)
 	if err != nil {
@@ -116,7 +127,7 @@ func backup(cfg *Config) error {
 	}()
 
 	skipDirs := []string{
-		"/sys", "/dev", "/proc", "/run", "/media", "/home", "/tmp", "/boot",
+		"/media", "/tmp",
 	}
 
 	tmpExcludeFile, err := writeExcludeFile(append(skipDirs, backupMountPoint))
@@ -149,7 +160,8 @@ func backup(cfg *Config) error {
 	if logger.GetLogLevel() == log.LevelDebug {
 		rsyncArgs = append(rsyncArgs, "-v")
 	}
-	rsyncArgs = append(rsyncArgs, "-a", "--delete-after", "--exclude-from="+tmpExcludeFile,
+	rsyncArgs = append(rsyncArgs, "-x", "-a", "--delete-after",
+		"--exclude-from="+tmpExcludeFile,
 		"/", backupMountPoint+"/")
 
 	cmd := exec.Command("rsync", rsyncArgs...)
@@ -182,12 +194,12 @@ func backup(cfg *Config) error {
 	}
 
 	// generate grub config
-	err = writeGrubCfgBackup(grubCfgFile, backupUuid, backupDevice, deepinVersion, kFiles)
+	err = writeGrubCfgBackup(grubCfgFile, backupUuid, backupDevice, deepinVersion, kFiles, now)
 	if err != nil {
 		return err
 	}
 
-	err = runUpdateGrub()
+	err = runUpdateGrub(envVars)
 	if err != nil {
 		return err
 	}
@@ -367,14 +379,15 @@ func charsToString(ca []int8) string {
 	return string(s)
 }
 
-func runUpdateGrub() error {
+func runUpdateGrub(envVars []string) error {
 	cmd := exec.Command("grub-mkconfig", "-o", "/boot/grub/grub.cfg")
+	cmd.Env = append(os.Environ(), envVars...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
-func restore(cfg *Config) error {
+func restore(cfg *Config, envVars []string) error {
 	currentDevice, err := getDeviceByUuid(cfg.Current)
 	if err != nil {
 		return err
@@ -385,7 +398,7 @@ func restore(cfg *Config) error {
 		return err
 	}
 
-	err = runUpdateGrub()
+	err = runUpdateGrub(envVars)
 	if err != nil {
 		return err
 	}
@@ -416,7 +429,8 @@ func writeGrubCfgRestore(filename, uuid, device string) error {
 	return err
 }
 
-func writeGrubCfgBackup(filename, backupUuid, backupDevice, deepinVersion string, kFiles *kernelFiles) error {
+func writeGrubCfgBackup(filename, backupUuid, backupDevice, deepinVersion string,
+	kFiles *kernelFiles, backupTime time.Time) error {
 	dir := filepath.Dir(filename)
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
@@ -431,6 +445,7 @@ func writeGrubCfgBackup(filename, backupUuid, backupDevice, deepinVersion string
 		filepath.Base(kFiles.linux)) + "\"\n")
 	buf.WriteString(varPrefix + "INITRD=\"" + filepath.Base(kFiles.initrd) + "\"\n")
 	buf.WriteString(varPrefix + "VERSION=\"" + deepinVersion + "\"\n")
+	buf.WriteString(varPrefix + "BACKUP_TIME=" + strconv.FormatInt(backupTime.Unix(), 10))
 
 	err = ioutil.WriteFile(filename, buf.Bytes(), 0644)
 	return err
@@ -525,4 +540,29 @@ func inhibit(what, who, why string) (dbus.UnixFD, error) {
 	}
 	m := login1.NewManager(systemConn)
 	return m.Inhibit(0, what, who, why, "block")
+}
+
+func getLocaleEnvVarsWithSender(service *dbusutil.Service, sender dbus.Sender) ([]string, error) {
+	var result []string
+
+	pid, err := service.GetConnPID(string(sender))
+	if err != nil {
+		return nil, err
+	}
+
+	p := procfs.Process(pid)
+	environ, err := p.Environ()
+	if err != nil {
+		return nil, err
+	} else {
+		v, ok := environ.Lookup("LANG")
+		if ok {
+			result = append(result, "LANG="+v)
+		}
+		v, ok = environ.Lookup("LANGUAGE")
+		if ok {
+			result = append(result, "LANGUAGE="+v)
+		}
+	}
+	return result, nil
 }

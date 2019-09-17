@@ -18,6 +18,10 @@ const (
 	jobKindRestore = "restore"
 )
 
+var _ = Tr("Roll back to deepin %s (%s)")
+
+// ^ 实际源字符串定义在文件 misc/11_deepin_ab_recovery 中
+
 //go:generate dbusutil-gen -type Manager manager.go
 type Manager struct {
 	service       *dbusutil.Service
@@ -111,7 +115,7 @@ func (m *Manager) CanRestore() (bool, *dbus.Error) {
 	return can, dbusutil.ToError(err)
 }
 
-func (m *Manager) startBackup() error {
+func (m *Manager) startBackup(envVars []string) error {
 	can, err := m.canBackup()
 	if err != nil {
 		return err
@@ -135,7 +139,7 @@ func (m *Manager) startBackup() error {
 	}
 
 	go func() {
-		err := m.backup()
+		err := m.backup(envVars)
 		if err != nil {
 			logger.Warning(err)
 		}
@@ -155,12 +159,16 @@ func (m *Manager) startBackup() error {
 	return nil
 }
 
-func (m *Manager) StartBackup() *dbus.Error {
-	err := m.startBackup()
+func (m *Manager) StartBackup(sender dbus.Sender) *dbus.Error {
+	envVars, err := getLocaleEnvVarsWithSender(m.service, sender)
+	if err != nil {
+		return dbusutil.ToError(err)
+	}
+	err = m.startBackup(envVars)
 	return dbusutil.ToError(err)
 }
 
-func (m *Manager) startRestore() error {
+func (m *Manager) startRestore(envVars []string) error {
 	can, err := m.canRestore()
 	if err != nil {
 		return err
@@ -184,7 +192,7 @@ func (m *Manager) startRestore() error {
 	}
 
 	go func() {
-		err := m.restore()
+		err := m.restore(envVars)
 		if err != nil {
 			logger.Warning(err)
 		}
@@ -203,8 +211,12 @@ func (m *Manager) startRestore() error {
 	return nil
 }
 
-func (m *Manager) StartRestore() *dbus.Error {
-	err := m.startRestore()
+func (m *Manager) StartRestore(sender dbus.Sender) *dbus.Error {
+	envVars, err := getLocaleEnvVarsWithSender(m.service, sender)
+	if err != nil {
+		return dbusutil.ToError(err)
+	}
+	err = m.startRestore(envVars)
 	return dbusutil.ToError(err)
 }
 
@@ -224,16 +236,20 @@ func inhibitShutdownDo(why string, fn func() error) error {
 	return err
 }
 
-func (m *Manager) backup() error {
-	return inhibitShutdownDo("Backing up the system", func() error {
-		return backup(&m.cfg)
+func (m *Manager) backup(envVars []string) error {
+	return inhibitShutdownDo(Tr("Backing up the system"), func() error {
+		return backup(&m.cfg, envVars)
 	})
 }
 
-func (m *Manager) restore() error {
-	return inhibitShutdownDo("Restoring the system", func() error {
-		return restore(&m.cfg)
+func (m *Manager) restore(envVars []string) error {
+	return inhibitShutdownDo(Tr("Restoring the system"), func() error {
+		return restore(&m.cfg, envVars)
 	})
+}
+
+func Tr(text string) string {
+	return text
 }
 
 func (m *Manager) emitSignalJobEnd(kind string, err error) {
