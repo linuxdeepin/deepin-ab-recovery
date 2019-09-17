@@ -3,7 +3,7 @@ Section: admin
 Priority: extra
 Maintainer: Deepin Packages Builder <packages@deepin.com>
 Build-Depends: debhelper (>= 9), golang-go,
- golang-dlib-dev
+ golang-dlib-dev, golang-github-linuxdeepin-go-dbus-factory-dev
 Standards-Version: 3.9.5
 Homepage: http://github.com/linuxdeepin
 
