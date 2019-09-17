@@ -53,6 +53,23 @@ func main() {
 	service.Wait()
 }
 
+func isMounted(mountPoint string) (bool, error) {
+	content, err := ioutil.ReadFile("/proc/self/mounts")
+	if err != nil {
+		return false, err
+	}
+	lines := bytes.Split(content, []byte{'\n'})
+	for _, line := range lines {
+		fields := bytes.SplitN(line, []byte{' '}, 3)
+		if len(fields) >= 2 {
+			if string(fields[1]) == mountPoint {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
 func backup(cfg *Config) error {
 	backupUuid := cfg.Backup
 	backupDevice, err := getDeviceByUuid(backupUuid)
@@ -62,8 +79,20 @@ func backup(cfg *Config) error {
 
 	logger.Debug("backup device:", backupDevice)
 
-	err = os.Mkdir(backupMountPoint, 0755)
+	mounted, err := isMounted(backupMountPoint)
 	if err != nil {
+		return err
+	}
+
+	if mounted {
+		err = exec.Command("umount", backupMountPoint).Run()
+		if err != nil {
+			return err
+		}
+	}
+
+	err = os.Mkdir(backupMountPoint, 0755)
+	if err != nil && !os.IsExist(err) {
 		return err
 	}
 	defer func() {

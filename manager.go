@@ -141,12 +141,12 @@ func (m *Manager) startBackup() error {
 		m.emitSignalJobEnd(jobKindBackup, err)
 
 		m.PropsMu.Lock()
-
 		m.setPropBackingUp(false)
-		backupTime := m.cfg.Time.Unix()
-		m.setPropBackupTime(backupTime)
-		m.setPropBackupVersion(m.cfg.Version)
-
+		if err == nil {
+			backupTime := m.cfg.Time.Unix()
+			m.setPropBackupTime(backupTime)
+			m.setPropBackupVersion(m.cfg.Version)
+		}
 		m.PropsMu.Unlock()
 
 	}()
