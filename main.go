@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	login1 "github.com/linuxdeepin/go-dbus-factory/org.freedesktop.login1"
+	"pkg.deepin.io/lib/dbus1"
 	"pkg.deepin.io/lib/dbusutil"
 	"pkg.deepin.io/lib/keyfile"
 	"pkg.deepin.io/lib/log"
@@ -514,4 +516,13 @@ func hasDiskDevice(uuid string) bool {
 	}
 	_, err := os.Stat(filepath.Join("/dev/disk/by-uuid", uuid))
 	return err == nil
+}
+
+func inhibit(what, who, why string) (dbus.UnixFD, error) {
+	systemConn, err := dbus.SystemBus()
+	if err != nil {
+		return 0, err
+	}
+	m := login1.NewManager(systemConn)
+	return m.Inhibit(0, what, who, why, "block")
 }

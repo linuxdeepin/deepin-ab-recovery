@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"sync"
+	"syscall"
 
 	"pkg.deepin.io/lib/dbus1"
 	"pkg.deepin.io/lib/dbusutil"
@@ -207,12 +208,32 @@ func (m *Manager) StartRestore() *dbus.Error {
 	return dbusutil.ToError(err)
 }
 
+func inhibitShutdownDo(why string, fn func() error) error {
+	fd, iErr := inhibit("shutdown", dbusInterface, why)
+	if iErr != nil {
+		logger.Warning("failed to inhibit:", iErr)
+	}
+	err := fn()
+
+	if iErr == nil {
+		err := syscall.Close(int(fd))
+		if err != nil {
+			logger.Warningf("failed to close fd %d: %v", int(fd), err)
+		}
+	}
+	return err
+}
+
 func (m *Manager) backup() error {
-	return backup(&m.cfg)
+	return inhibitShutdownDo("Backing up the system", func() error {
+		return backup(&m.cfg)
+	})
 }
 
 func (m *Manager) restore() error {
-	return restore(&m.cfg)
+	return inhibitShutdownDo("Restoring the system", func() error {
+		return restore(&m.cfg)
+	})
 }
 
 func (m *Manager) emitSignalJobEnd(kind string, err error) {
