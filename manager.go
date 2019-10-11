@@ -18,9 +18,9 @@ const (
 	jobKindRestore = "restore"
 )
 
-var _ = Tr("Roll back to deepin %s (%s)")
+var msgRollBack = Tr("Roll back to %s (%s)")
 
-// ^ 实际源字符串定义在文件 misc/11_deepin_ab_recovery 中
+// ^ 相同的源字符串也定义在文件 misc/11_deepin_ab_recovery 中
 
 //go:generate dbusutil-gen -type Manager manager.go
 type Manager struct {
@@ -84,9 +84,23 @@ func (m *Manager) GetInterfaceName() string {
 }
 
 func (m *Manager) canBackup() (bool, error) {
+	if usePmonBios {
+		return false, nil
+	}
+	if noGrubMkconfig {
+		if isArchMips() {
+			// pass
+		} else if isArchSw() {
+			// pass
+		} else {
+			return false, nil
+		}
+	}
+
 	if !m.ConfigValid {
 		return false, nil
 	}
+
 	rootUuid, err := getRootUuid()
 	if err != nil {
 		return false, err
@@ -100,6 +114,19 @@ func (m *Manager) CanBackup() (bool, *dbus.Error) {
 }
 
 func (m *Manager) canRestore() (bool, error) {
+	if usePmonBios {
+		return false, nil
+	}
+	if noGrubMkconfig {
+		if isArchMips() {
+			// pass
+		} else if isArchSw() {
+			// pass
+		} else {
+			return false, nil
+		}
+	}
+
 	if !m.ConfigValid {
 		return false, nil
 	}

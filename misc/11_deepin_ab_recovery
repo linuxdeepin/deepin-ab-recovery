@@ -147,7 +147,7 @@ rel_dirname=`make_system_path_relative_to_its_root $dirname`
 version=`echo $basename | sed -e "s,^[^0-9]*-,,g"`
 linux_root_device_thisversion="${LINUX_ROOT_DEVICE}"
 backup_time=$(date +%c -d @$DEEPIN_AB_RECOVERY_BACKUP_TIME)
-menu_entry=$(printf "$(gettext -d deepin-ab-recovery 'Roll back to deepin %s (%s)')" "$DEEPIN_AB_RECOVERY_VERSION" "$backup_time")
+menu_entry=$(printf "$(gettext -d deepin-ab-recovery 'Roll back to %s (%s)')" "$DEEPIN_AB_RECOVERY_OS_DESC" "$backup_time")
 
 linux_entry "$menu_entry" "${version}" simple \
   "${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT}"

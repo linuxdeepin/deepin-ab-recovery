@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-09-17 19:55+0800\n"
+"POT-Creation-Date: 2019-10-11 16:03+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,19 +17,19 @@ msgstr ""
 "Content-Type: text/plain; charset=CHARSET\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: main.go:53
+#: main.go:80
 msgid "Control Center"
 msgstr ""
 
 #: manager.go:21
 #, c-format
-msgid "Roll back to deepin %s (%s)"
+msgid "Roll back to %s (%s)"
 msgstr ""
 
-#: manager.go:232
+#: manager.go:240
 msgid "Backing up the system"
 msgstr ""
 
-#: manager.go:238
+#: manager.go:246
 msgid "Restoring the system"
 msgstr ""
