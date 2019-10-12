@@ -15,6 +15,9 @@ install: translate
 	install -m 0644 -D misc/com.deepin.ABRecovery.conf ${DESTDIR}${PREFIX}/share/dbus-1/system.d/com.deepin.ABRecovery.conf
 	install -m 0644 -D misc/com.deepin.ABRecovery.service ${DESTDIR}${PREFIX}/share/dbus-1/system-services/com.deepin.ABRecovery.service
 
+test:
+	go test -v ./...
+
 clean:
 	rm -rf out
 

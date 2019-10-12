@@ -12,7 +12,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"./grubcfg"
@@ -32,19 +31,21 @@ const (
 	configFile            = "/etc/deepin/ab-recovery.json"
 	backupMountPoint      = "/deepin-ab-recovery-backup"
 	abRecoveryGrubCfgFile = "/etc/default/grub.d/11_deepin_ab_recovery.cfg"
-	kernelBackupDir       = "/boot/deepin-ab-recovery"
 )
 
 var noGrubMkconfig bool
 var usePmonBios bool
 var arch string
-var grubCfgFile string
+var grubCfgFile = "/boot/grub/grub.cfg"
+var bootDir = "/boot"
+var kernelBackupDir string
 
 var options struct {
 	noRsync        bool
 	noGrubMkconfig bool
 	arch           string
 	grubCfgFile    string
+	bootDir        string
 }
 
 func init() {
@@ -52,14 +53,7 @@ func init() {
 	flag.BoolVar(&options.noGrubMkconfig, "no-grub-mkconfig", false, "")
 	flag.StringVar(&options.arch, "arch", "", "")
 	flag.StringVar(&options.grubCfgFile, "grub-cfg", "", "")
-}
-
-func isArchSw() bool {
-	return arch == "sw_64"
-}
-
-func isArchMips() bool {
-	return strings.HasPrefix(arch, "mips")
+	flag.StringVar(&options.bootDir, "boot", "", "")
 }
 
 func main() {
@@ -77,19 +71,20 @@ func main() {
 	if isArchMips() {
 		// mips64
 		noGrubMkconfig = true
-		grubCfgFile = "/boot/grub.cfg"
-
-		content, err := ioutil.ReadFile("/proc/boardinfo")
+		bi, err := readBoardInfo()
 		if err != nil {
 			logger.Warning("failed to read board info:", err)
+		} else {
+			if strings.Contains(bi.biosVersion, "PMON") {
+				usePmonBios = true
+			} else if strings.Contains(bi.biosVersion, "UDK") {
+				bootDir = "/boot/EFI/BOOT"
+			}
 		}
+		grubCfgFile = filepath.Join(bootDir, "grub.cfg")
 
-		if bytes.Contains(content, []byte("PMON")) {
-			usePmonBios = true
-		}
 	} else if isArchSw() {
 		noGrubMkconfig = true
-		grubCfgFile = "/boot/grub/grub.cfg"
 	}
 
 	if options.noGrubMkconfig {
@@ -99,9 +94,15 @@ func main() {
 		grubCfgFile = options.grubCfgFile
 	}
 
+	if options.bootDir != "" {
+		bootDir = filepath.Clean(options.bootDir)
+	}
+	kernelBackupDir = filepath.Join(bootDir, "deepin-ab-recovery")
+
 	logger.Debug("arch:", arch)
 	logger.Debug("noGrubMkConfig:", noGrubMkconfig)
 	logger.Debug("usePmonBios:", usePmonBios)
+	logger.Debug("bootDir:", bootDir)
 	logger.Debug("grubCfgFile:", grubCfgFile)
 
 	service, err := dbusutil.NewSystemService()
@@ -130,23 +131,6 @@ func main() {
 
 	service.SetAutoQuitHandler(3*time.Minute, m.canQuit)
 	service.Wait()
-}
-
-func isMounted(mountPoint string) (bool, error) {
-	content, err := ioutil.ReadFile("/proc/self/mounts")
-	if err != nil {
-		return false, err
-	}
-	lines := bytes.Split(content, []byte{'\n'})
-	for _, line := range lines {
-		fields := bytes.SplitN(line, []byte{' '}, 3)
-		if len(fields) >= 2 {
-			if string(fields[1]) == mountPoint {
-				return true, nil
-			}
-		}
-	}
-	return false, nil
 }
 
 func backup(cfg *Config, envVars []string) error {
@@ -274,32 +258,6 @@ func backup(cfg *Config, envVars []string) error {
 	return nil
 }
 
-const (
-	lsbReleaseKeyDistID   = "Distributor ID"
-	lsbReleaseKeyDesc     = "Description"
-	lsbReleaseKeyRelease  = "Release"
-	lsbReleaseKeyCodename = "Codename"
-)
-
-func runLsbRelease() (map[string]string, error) {
-	out, err := exec.Command("lsb_release", "-a").Output()
-	if err != nil {
-		return nil, err
-	}
-	lines := bytes.Split(out, []byte("\n"))
-	result := make(map[string]string)
-	for _, line := range lines {
-		parts := bytes.SplitN(line, []byte(":"), 2)
-		if len(parts) != 2 {
-			continue
-		}
-		key := string(bytes.TrimSpace(parts[0]))
-		value := string(bytes.TrimSpace(parts[1]))
-		result[key] = value
-	}
-	return result, nil
-}
-
 func backupKernel() (kFiles *kernelFiles, err error) {
 	err = os.RemoveAll(kernelBackupDir + ".old")
 	if err != nil {
@@ -389,7 +347,7 @@ func findKernelFiles(release, machine string) (*kernelFiles, error) {
 
 	// linux
 	for _, prefix := range prefixes {
-		filename := filepath.Join("/boot", prefix+release)
+		filename := filepath.Join(bootDir, prefix+release)
 		_, err := os.Stat(filename)
 		if err != nil {
 			continue
@@ -419,7 +377,7 @@ func findKernelFiles(release, machine string) (*kernelFiles, error) {
 		"initramfs-genkernel-${genKernelArch}-${version}",
 		"initramfs-genkernel-${genKernelArch}-${altVersion}",
 	} {
-		filename := filepath.Join("/boot", replacer.Replace(format))
+		filename := filepath.Join(bootDir, replacer.Replace(format))
 		_, err := os.Stat(filename)
 		if err != nil {
 			continue
@@ -433,46 +391,6 @@ func findKernelFiles(release, machine string) (*kernelFiles, error) {
 	}
 
 	return &result, nil
-}
-
-type utsName struct {
-	machine string
-	release string
-}
-
-func uname() (*utsName, error) {
-	var buf syscall.Utsname
-	err := syscall.Uname(&buf)
-	if err != nil {
-		return nil, err
-	}
-	var result utsName
-	result.release = charsToString(buf.Release[:])
-	result.machine = charsToString(buf.Machine[:])
-	return &result, nil
-}
-
-func charsToString(ca []int8) string {
-	s := make([]byte, 0, len(ca))
-	for _, c := range ca {
-		if byte(c) == 0 {
-			break
-		}
-		s = append(s, byte(c))
-	}
-	return string(s)
-}
-
-func runUpdateGrub(envVars []string) error {
-	if noGrubMkconfig {
-		return nil
-	}
-
-	cmd := exec.Command("grub-mkconfig", "-o", "/boot/grub/grub.cfg")
-	cmd.Env = append(os.Environ(), envVars...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }
 
 func restore(cfg *Config, envVars []string) error {
@@ -603,7 +521,7 @@ func writeGrubCfgBackupSw(backupUuid string, osDesc string, kFiles *kernelFiles,
 	cfg.RemoveRecoveryMenuEntries()
 
 	menuText := getRollBackMenuTextSafe(osDesc, backupTime, envVars)
-	dir := strings.TrimPrefix(kernelBackupDir, "/boot/")
+	dir := strings.TrimPrefix(kernelBackupDir, bootDir+"/")
 	linux := filepath.Join(dir, filepath.Base(kFiles.linux))
 	initrd := filepath.Join(dir, filepath.Base(kFiles.initrd))
 	cfg.AddRecoveryMenuEntrySw(menuText, backupUuid, linux, initrd)
@@ -624,7 +542,7 @@ func writeGrubCfgBackupMips(backupUuid string, osDesc string, kFiles *kernelFile
 	cfg.RemoveRecoveryMenuEntries()
 
 	menuText := getRollbackMenuTextForceEn(osDesc, backupTime)
-	dir := strings.TrimPrefix(kernelBackupDir, "/boot/")
+	dir := strings.TrimPrefix(kernelBackupDir, bootDir+"/")
 	linux := filepath.Join(dir, filepath.Base(kFiles.linux))
 	initrd := filepath.Join(dir, filepath.Base(kFiles.initrd))
 	cfg.AddRecoveryMenuEntryMips(menuText, backupUuid, linux, initrd)
@@ -677,45 +595,12 @@ func modifyFsTab(filename, uuid, device string) error {
 	return err
 }
 
-func writeExcludeFile(excludeItems []string) (string, error) {
-	fh, err := ioutil.TempFile("", "deepin-recovery-")
-	if err != nil {
-		return "", err
-	}
-	defer fh.Close()
-
-	var buf bytes.Buffer
-	for _, item := range excludeItems {
-		buf.WriteString(item)
-		buf.WriteByte('\n')
-	}
-
-	_, err = buf.WriteTo(fh)
-	if err != nil {
-		return "", err
-	}
-	return fh.Name(), nil
-}
-
 func getRootUuid() (string, error) {
 	out, err := exec.Command("grub-probe", "-t", "fs_uuid", "/").Output()
 	if err != nil {
 		return "", err
 	}
 	return string(bytes.TrimSpace(out)), nil
-}
-
-func getDeviceByUuid(uuid string) (string, error) {
-	device, err := filepath.EvalSymlinks(filepath.Join("/dev/disk/by-uuid", uuid))
-	return device, err
-}
-
-func hasDiskDevice(uuid string) bool {
-	if uuid == "" {
-		return false
-	}
-	_, err := os.Stat(filepath.Join("/dev/disk/by-uuid", uuid))
-	return err == nil
 }
 
 func inhibit(what, who, why string) (dbus.UnixFD, error) {
