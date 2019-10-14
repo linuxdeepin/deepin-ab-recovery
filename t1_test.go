@@ -74,11 +74,19 @@ func TestGetDeviceByUuid(t *testing.T) {
 		t.Skip("not found command head")
 	}
 
+	_, err = os.Stat("/dev/disk")
+	if err != nil {
+		t.Skip("disk not found")
+	}
+
 	out, err := exec.Command("sh", "-c", "ls /dev/disk/by-uuid|head -n1").Output()
 	if err != nil {
 		t.Error(err)
 	}
 	out = bytes.TrimSpace(out)
+	if len(out) == 0 {
+		t.Skip("disk not found")
+	}
 	dev, err := getDeviceByUuid(string(out))
 	assert.Nil(t, err)
 	t.Log("device:", dev)
