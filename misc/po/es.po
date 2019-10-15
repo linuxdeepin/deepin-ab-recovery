@@ -3,33 +3,37 @@
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# Alvaro Samudio <alvarosamudio@protonmail.com>, 2019
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2019-10-11 16:03+0800\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2019-09-15 08:29+0000\n"
+"Last-Translator: Alvaro Samudio <alvarosamudio@protonmail.com>, 2019\n"
+"Language-Team: Spanish (https://www.transifex.com/linuxdeepin/teams/3617/es/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Language: \n"
+"Language: es\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #: main.go:80
 msgid "Control Center"
-msgstr "Control Center"
+msgstr "Centro de Control"
 
 #: manager.go:21
 #, c-format
 msgid "Roll back to %s (%s)"
-msgstr "Roll back to %s (%s)"
+msgstr "Retroceder a %s (%s)"
 
 #: manager.go:240
 msgid "Backing up the system"
-msgstr "Backing up the system"
+msgstr "Copia de seguridad del sistema"
 
 #: manager.go:246
 msgid "Restoring the system"
-msgstr "Restoring the system"
+msgstr "Restaurar el sistema"

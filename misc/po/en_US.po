@@ -2,34 +2,34 @@
 # Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
-# 
+#
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-10-11 16:03+0800\n"
+"POT-Creation-Date: 2019-09-17 15:16+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: en_US\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Language: \n"
 
-#: main.go:80
-msgid "Control Center"
-msgstr "Control Center"
+#: main.go:50
+msgid "Deepin ABRecovery"
+msgstr ""
 
 #: manager.go:21
 #, c-format
-msgid "Roll back to %s (%s)"
-msgstr "Roll back to %s (%s)"
+msgid "Roll back to deepin %s"
+msgstr ""
 
-#: manager.go:240
+#: manager.go:232
 msgid "Backing up the system"
-msgstr "Backing up the system"
+msgstr ""
 
-#: manager.go:246
+#: manager.go:238
 msgid "Restoring the system"
-msgstr "Restoring the system"
+msgstr ""
