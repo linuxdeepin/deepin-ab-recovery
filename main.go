@@ -33,12 +33,13 @@ const (
 	abRecoveryGrubCfgFile = "/etc/default/grub.d/11_deepin_ab_recovery.cfg"
 )
 
-var noGrubMkconfig bool
-var usePmonBios bool
-var arch string
-var grubCfgFile = "/boot/grub/grub.cfg"
-var bootDir = "/boot"
-var kernelBackupDir string
+var globalNoGrubMkconfig bool
+var globalUsePmonBios bool
+var globalArch string
+var globalGrubCfgFile = "/boot/grub/grub.cfg"
+var globalBootDir = "/boot"
+var globalKernelBackupDir string
+var globalGrubMenuEn bool
 
 var options struct {
 	noRsync        bool
@@ -46,11 +47,13 @@ var options struct {
 	arch           string
 	grubCfgFile    string
 	bootDir        string
+	grubMenuEn     bool
 }
 
 func init() {
 	flag.BoolVar(&options.noRsync, "no-rsync", false, "")
 	flag.BoolVar(&options.noGrubMkconfig, "no-grub-mkconfig", false, "")
+	flag.BoolVar(&options.grubMenuEn, "grub-menu-en", false, "grub menu entry use english")
 	flag.StringVar(&options.arch, "arch", "", "")
 	flag.StringVar(&options.grubCfgFile, "grub-cfg", "", "")
 	flag.StringVar(&options.bootDir, "boot", "", "")
@@ -63,47 +66,53 @@ func main() {
 		logger.Warning(err)
 	}
 
-	arch = runtime.GOARCH
+	globalArch = runtime.GOARCH
 	if options.arch != "" {
-		arch = options.arch
+		globalArch = options.arch
 	}
 
 	if isArchMips() {
 		// mips64
-		noGrubMkconfig = true
+		globalNoGrubMkconfig = true
 		bi, err := readBoardInfo()
 		if err != nil {
 			logger.Warning("failed to read board info:", err)
 		} else {
 			if strings.Contains(bi.biosVersion, "PMON") {
-				usePmonBios = true
+				globalUsePmonBios = true
 			} else if strings.Contains(bi.biosVersion, "UDK") {
-				bootDir = "/boot/EFI/BOOT"
+				globalBootDir = "/boot/EFI/BOOT"
 			}
 		}
-		grubCfgFile = filepath.Join(bootDir, "grub.cfg")
+		globalGrubCfgFile = filepath.Join(globalBootDir, "grub.cfg")
 
 	} else if isArchSw() {
-		noGrubMkconfig = true
+		globalNoGrubMkconfig = true
+	} else if isArchArm() {
+		globalGrubMenuEn = true
 	}
 
 	if options.noGrubMkconfig {
-		noGrubMkconfig = true
+		globalNoGrubMkconfig = true
 	}
 	if options.grubCfgFile != "" {
-		grubCfgFile = options.grubCfgFile
+		globalGrubCfgFile = options.grubCfgFile
+	}
+	if options.grubMenuEn {
+		globalGrubMenuEn = true
 	}
 
 	if options.bootDir != "" {
-		bootDir = filepath.Clean(options.bootDir)
+		globalBootDir = filepath.Clean(options.bootDir)
 	}
-	kernelBackupDir = filepath.Join(bootDir, "deepin-ab-recovery")
+	globalKernelBackupDir = filepath.Join(globalBootDir, "deepin-ab-recovery")
 
-	logger.Debug("arch:", arch)
-	logger.Debug("noGrubMkConfig:", noGrubMkconfig)
-	logger.Debug("usePmonBios:", usePmonBios)
-	logger.Debug("bootDir:", bootDir)
-	logger.Debug("grubCfgFile:", grubCfgFile)
+	logger.Debug("arch:", globalArch)
+	logger.Debug("noGrubMkConfig:", globalNoGrubMkconfig)
+	logger.Debug("usePmonBios:", globalUsePmonBios)
+	logger.Debug("bootDir:", globalBootDir)
+	logger.Debug("grubCfgFile:", globalGrubCfgFile)
+	logger.Debug("grubMenuEn:", globalGrubMenuEn)
 
 	service, err := dbusutil.NewSystemService()
 	if err != nil {
@@ -117,7 +126,7 @@ func main() {
 	}
 
 	ihObj := inhibit_hint.New("deepin-ab-recovery")
-	ihObj.SetIcon("dde-control-center")
+	ihObj.SetIcon("preferences-system")
 	ihObj.SetName(Tr("Control Center"))
 	err = ihObj.Export(service)
 	if err != nil {
@@ -259,21 +268,21 @@ func backup(cfg *Config, envVars []string) error {
 }
 
 func backupKernel() (kFiles *kernelFiles, err error) {
-	err = os.RemoveAll(kernelBackupDir + ".old")
+	err = os.RemoveAll(globalKernelBackupDir + ".old")
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return
 		}
 	}
 
-	err = os.Rename(kernelBackupDir, kernelBackupDir+".old")
+	err = os.Rename(globalKernelBackupDir, globalKernelBackupDir+".old")
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return
 		}
 	}
 
-	err = os.Mkdir(kernelBackupDir, 0755)
+	err = os.Mkdir(globalKernelBackupDir, 0755)
 	if err != nil {
 		return
 	}
@@ -293,20 +302,20 @@ func backupKernel() (kFiles *kernelFiles, err error) {
 	logger.Debug("found initrd:", kFiles.initrd)
 
 	// copy linux
-	linuxBackup := filepath.Join(kernelBackupDir, filepath.Base(kFiles.linux))
+	linuxBackup := filepath.Join(globalKernelBackupDir, filepath.Base(kFiles.linux))
 	err = utils.CopyFile(kFiles.linux, linuxBackup)
 	if err != nil {
 		return
 	}
 
 	// copy initrd
-	initrdBackup := filepath.Join(kernelBackupDir, filepath.Base(kFiles.initrd))
+	initrdBackup := filepath.Join(globalKernelBackupDir, filepath.Base(kFiles.initrd))
 	err = utils.CopyFile(kFiles.initrd, initrdBackup)
 	if err != nil {
 		return
 	}
 
-	err = os.RemoveAll(kernelBackupDir + ".old")
+	err = os.RemoveAll(globalKernelBackupDir + ".old")
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return
@@ -347,7 +356,7 @@ func findKernelFiles(release, machine string) (*kernelFiles, error) {
 
 	// linux
 	for _, prefix := range prefixes {
-		filename := filepath.Join(bootDir, prefix+release)
+		filename := filepath.Join(globalBootDir, prefix+release)
 		_, err := os.Stat(filename)
 		if err != nil {
 			continue
@@ -377,7 +386,7 @@ func findKernelFiles(release, machine string) (*kernelFiles, error) {
 		"initramfs-genkernel-${genKernelArch}-${version}",
 		"initramfs-genkernel-${genKernelArch}-${altVersion}",
 	} {
-		filename := filepath.Join(bootDir, replacer.Replace(format))
+		filename := filepath.Join(globalBootDir, replacer.Replace(format))
 		_, err := os.Stat(filename)
 		if err != nil {
 			continue
@@ -417,7 +426,7 @@ func restore(cfg *Config, envVars []string) error {
 }
 
 func writeGrubCfgRestore(currentUuid, currentDevice, backupUuid string, envVars []string) error {
-	if noGrubMkconfig {
+	if globalNoGrubMkconfig {
 		if isArchMips() {
 			return writeGrubCfgRestoreMips(backupUuid)
 		} else if isArchSw() {
@@ -451,7 +460,7 @@ func writeGrubCfgRestoreSw(uuid string) error {
 }
 
 func writeGrubCfgRestoreMips(uuid string) error {
-	cfg, err := grubcfg.ParseGrubCfgFile(grubCfgFile)
+	cfg, err := grubcfg.ParseGrubCfgFile(globalGrubCfgFile)
 	if err != nil {
 		return xerrors.Errorf("failed to parse grub cfg file: %w", err)
 	}
@@ -462,7 +471,7 @@ func writeGrubCfgRestoreMips(uuid string) error {
 		return xerrors.Errorf("failed to replace root uuid: %w", err)
 	}
 
-	err = cfg.Save(grubCfgFile)
+	err = cfg.Save(globalGrubCfgFile)
 	if err != nil {
 		return xerrors.Errorf("failed to save grub cfg file: %w", err)
 	}
@@ -471,7 +480,11 @@ func writeGrubCfgRestoreMips(uuid string) error {
 
 func writeGrubCfgBackup(backupUuid, backupDevice, osDesc string,
 	kFiles *kernelFiles, backupTime time.Time, envVars []string) error {
-	if noGrubMkconfig {
+	if globalGrubMenuEn {
+		envVars = []string{"LANG=en_US.UTF-8", "LANGUAGE=en_US"}
+	}
+
+	if globalNoGrubMkconfig {
 		if isArchSw() {
 			return writeGrubCfgBackupSw(backupUuid, osDesc, kFiles, backupTime, envVars)
 		} else if isArchMips() {
@@ -492,7 +505,7 @@ func writeGrubCfgBackup(backupUuid, backupDevice, osDesc string,
 	buf.WriteString(varPrefix + "BACKUP_UUID=" + backupUuid + "\n")
 	buf.WriteString(fmt.Sprintf("GRUB_OS_PROBER_SKIP_LIST=\"$GRUB_OS_PROBER_SKIP_LIST %s@%s\"\n",
 		backupUuid, backupDevice))
-	buf.WriteString(varPrefix + "LINUX=\"" + filepath.Join(kernelBackupDir,
+	buf.WriteString(varPrefix + "LINUX=\"" + filepath.Join(globalKernelBackupDir,
 		filepath.Base(kFiles.linux)) + "\"\n")
 	buf.WriteString(varPrefix + "INITRD=\"" + filepath.Base(kFiles.initrd) + "\"\n")
 	buf.WriteString(varPrefix + "OS_DESC=\"" + osDesc + "\"\n")
@@ -513,7 +526,7 @@ func writeGrubCfgBackup(backupUuid, backupDevice, osDesc string,
 
 func writeGrubCfgBackupSw(backupUuid string, osDesc string, kFiles *kernelFiles,
 	backupTime time.Time, envVars []string) error {
-	cfg, err := grubcfg.ParseGrubCfgFile(grubCfgFile)
+	cfg, err := grubcfg.ParseGrubCfgFile(globalGrubCfgFile)
 	if err != nil {
 		return xerrors.Errorf("failed to parse grub cfg file: %w", err)
 	}
@@ -521,12 +534,12 @@ func writeGrubCfgBackupSw(backupUuid string, osDesc string, kFiles *kernelFiles,
 	cfg.RemoveRecoveryMenuEntries()
 
 	menuText := getRollBackMenuTextSafe(osDesc, backupTime, envVars)
-	dir := strings.TrimPrefix(kernelBackupDir, bootDir+"/")
+	dir := strings.TrimPrefix(globalKernelBackupDir, globalBootDir+"/")
 	linux := filepath.Join(dir, filepath.Base(kFiles.linux))
 	initrd := filepath.Join(dir, filepath.Base(kFiles.initrd))
 	cfg.AddRecoveryMenuEntrySw(menuText, backupUuid, linux, initrd)
 
-	err = cfg.Save(grubCfgFile)
+	err = cfg.Save(globalGrubCfgFile)
 	if err != nil {
 		return xerrors.Errorf("failed to save grub cfg file: %w", err)
 	}
@@ -534,7 +547,7 @@ func writeGrubCfgBackupSw(backupUuid string, osDesc string, kFiles *kernelFiles,
 }
 
 func writeGrubCfgBackupMips(backupUuid string, osDesc string, kFiles *kernelFiles, backupTime time.Time) error {
-	cfg, err := grubcfg.ParseGrubCfgFile(grubCfgFile)
+	cfg, err := grubcfg.ParseGrubCfgFile(globalGrubCfgFile)
 	if err != nil {
 		return xerrors.Errorf("failed to parse grub cfg file: %w", err)
 	}
@@ -542,12 +555,12 @@ func writeGrubCfgBackupMips(backupUuid string, osDesc string, kFiles *kernelFile
 	cfg.RemoveRecoveryMenuEntries()
 
 	menuText := getRollbackMenuTextForceEn(osDesc, backupTime)
-	dir := strings.TrimPrefix(kernelBackupDir, bootDir+"/")
+	dir := strings.TrimPrefix(globalKernelBackupDir, globalBootDir+"/")
 	linux := filepath.Join(dir, filepath.Base(kFiles.linux))
 	initrd := filepath.Join(dir, filepath.Base(kFiles.initrd))
 	cfg.AddRecoveryMenuEntryMips(menuText, backupUuid, linux, initrd)
 
-	err = cfg.Save(grubCfgFile)
+	err = cfg.Save(globalGrubCfgFile)
 	if err != nil {
 		return xerrors.Errorf("failed to save grub cfg file: %w", err)
 	}

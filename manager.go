@@ -84,10 +84,10 @@ func (m *Manager) GetInterfaceName() string {
 }
 
 func (m *Manager) canBackup() (bool, error) {
-	if usePmonBios {
+	if globalUsePmonBios {
 		return false, nil
 	}
-	if noGrubMkconfig {
+	if globalNoGrubMkconfig {
 		if isArchMips() {
 			// pass
 		} else if isArchSw() {
@@ -114,10 +114,10 @@ func (m *Manager) CanBackup() (bool, *dbus.Error) {
 }
 
 func (m *Manager) canRestore() (bool, error) {
-	if usePmonBios {
+	if globalUsePmonBios {
 		return false, nil
 	}
-	if noGrubMkconfig {
+	if globalNoGrubMkconfig {
 		if isArchMips() {
 			// pass
 		} else if isArchSw() {

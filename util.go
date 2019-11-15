@@ -11,11 +11,15 @@ import (
 )
 
 func isArchSw() bool {
-	return arch == "sw_64"
+	return globalArch == "sw_64"
 }
 
 func isArchMips() bool {
-	return strings.HasPrefix(arch, "mips")
+	return strings.HasPrefix(globalArch, "mips")
+}
+
+func isArchArm() bool {
+	return strings.HasPrefix(globalArch, "arm")
 }
 
 type utsName struct {
@@ -47,7 +51,7 @@ func charsToString(ca []int8) string {
 }
 
 func runUpdateGrub(envVars []string) error {
-	if noGrubMkconfig {
+	if globalNoGrubMkconfig {
 		return nil
 	}
 
