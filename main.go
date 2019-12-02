@@ -63,7 +63,7 @@ func main() {
 	flag.Parse()
 	err := os.Setenv("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
 	if err != nil {
-		logger.Warning(err)
+		logger.Warning("failed to set env PATH", err)
 	}
 
 	globalArch = runtime.GOARCH
@@ -116,13 +116,13 @@ func main() {
 
 	service, err := dbusutil.NewSystemService()
 	if err != nil {
-		logger.Fatal(err)
+		logger.Fatal("failed to new system service:", err)
 	}
 
 	m := newManager(service)
 	err = service.Export(dbusPath, m)
 	if err != nil {
-		logger.Warning(err)
+		logger.Fatal("failed to export manager:", err)
 	}
 
 	ihObj := inhibit_hint.New("deepin-ab-recovery")
@@ -130,12 +130,12 @@ func main() {
 	ihObj.SetName(Tr("Control Center"))
 	err = ihObj.Export(service)
 	if err != nil {
-		logger.Warning(err)
+		logger.Warning("failed to export inhibit hint:", err)
 	}
 
 	err = service.RequestName(dbusServiceName)
 	if err != nil {
-		logger.Fatal(err)
+		logger.Fatal("failed to request service name:", err)
 	}
 
 	service.SetAutoQuitHandler(3*time.Minute, m.canQuit)
@@ -146,7 +146,7 @@ func backup(cfg *Config, envVars []string) error {
 	backupUuid := cfg.Backup
 	backupDevice, err := getDeviceByUuid(backupUuid)
 	if err != nil {
-		return err
+		return xerrors.Errorf("failed to get backup device by uuid %q: %w", backupUuid, err)
 	}
 
 	logger.Debug("backup device:", backupDevice)
@@ -159,7 +159,7 @@ func backup(cfg *Config, envVars []string) error {
 	if mounted {
 		err = exec.Command("umount", backupMountPoint).Run()
 		if err != nil {
-			return err
+			return xerrors.Errorf("failed to unmount %s: %w", backupMountPoint, err)
 		}
 	}
 
@@ -176,7 +176,8 @@ func backup(cfg *Config, envVars []string) error {
 
 	err = exec.Command("mount", backupDevice, backupMountPoint).Run()
 	if err != nil {
-		return err
+		return xerrors.Errorf("failed to mount device %q to dir %q: %w",
+			backupDevice, backupMountPoint, err)
 	}
 	defer func() {
 		err := exec.Command("umount", backupMountPoint).Run()
@@ -191,7 +192,7 @@ func backup(cfg *Config, envVars []string) error {
 
 	tmpExcludeFile, err := writeExcludeFile(append(skipDirs, backupMountPoint))
 	if err != nil {
-		return err
+		return xerrors.Errorf("failed to write exclude file: %w", err)
 	}
 	defer func() {
 		err := os.Remove(tmpExcludeFile)
@@ -215,30 +216,17 @@ func backup(cfg *Config, envVars []string) error {
 	cfg.Version = osVersion
 	err = cfg.save(configFile)
 	if err != nil {
-		return err
+		return xerrors.Errorf("failed to save config file %q: %w", configFile, err)
 	}
 
-	logger.Debug("run rsync...")
-	var rsyncArgs []string
-	if logger.GetLogLevel() == log.LevelDebug {
-		rsyncArgs = append(rsyncArgs, "-v")
-	}
-	rsyncArgs = append(rsyncArgs, "-x", "-a", "--delete-after",
-		"--exclude-from="+tmpExcludeFile,
-		"/", backupMountPoint+"/")
-
-	if !options.noRsync {
-		cmd := exec.Command("rsync", rsyncArgs...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err = cmd.Run()
-		if err != nil {
-			return err
-		}
+	err = runRsync(tmpExcludeFile)
+	if err != nil {
+		return xerrors.Errorf("run rsync err: %w", err)
 	}
 
 	for _, dir := range skipDirs {
-		err = os.Mkdir(filepath.Join(backupMountPoint, dir), 0755)
+		dir := filepath.Join(backupMountPoint, dir)
+		err = os.Mkdir(dir, 0755)
 		if err != nil {
 			if os.IsExist(err) {
 				continue
@@ -250,20 +238,45 @@ func backup(cfg *Config, envVars []string) error {
 	// modify fs tab
 	err = modifyFsTab(filepath.Join(backupMountPoint, "etc/fstab"), backupUuid, backupDevice)
 	if err != nil {
-		return err
+		return xerrors.Errorf("failed to modify fs tab: %w", err)
 	}
 
 	kFiles, err := backupKernel()
 	if err != nil {
-		return err
+		return xerrors.Errorf("failed to backup kernel: %w", err)
 	}
 
 	// generate grub config
 	err = writeGrubCfgBackup(backupUuid, backupDevice, osDesc, kFiles, now, envVars)
 	if err != nil {
-		return err
+		return xerrors.Errorf("failed to write grub cfg: %w", err)
 	}
 
+	return nil
+}
+
+func runRsync(excludeFile string) error {
+	if options.noRsync {
+		logger.Debug("skip run rsync")
+		return nil
+	}
+
+	logger.Debug("run rsync...")
+	var rsyncArgs []string
+	if logger.GetLogLevel() == log.LevelDebug {
+		rsyncArgs = append(rsyncArgs, "-v")
+	}
+	rsyncArgs = append(rsyncArgs, "-x", "-a", "--delete-after",
+		"--exclude-from="+excludeFile,
+		"/", backupMountPoint+"/")
+
+	cmd := exec.Command("rsync", rsyncArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -405,12 +418,12 @@ func findKernelFiles(release, machine string) (*kernelFiles, error) {
 func restore(cfg *Config, envVars []string) error {
 	currentDevice, err := getDeviceByUuid(cfg.Current)
 	if err != nil {
-		return err
+		return xerrors.Errorf("failed to get device by uuid %q: %w", cfg.Current, err)
 	}
 
 	err = writeGrubCfgRestore(cfg.Current, currentDevice, cfg.Backup, envVars)
 	if err != nil {
-		return err
+		return xerrors.Errorf("failed to write grub cfg: %w", err)
 	}
 
 	// swap current and backup
@@ -419,7 +432,7 @@ func restore(cfg *Config, envVars []string) error {
 	cfg.Version = ""
 	err = cfg.save(configFile)
 	if err != nil {
-		return err
+		return xerrors.Errorf("failed to save config file %q: %w", configFile, err)
 	}
 
 	return nil
@@ -513,15 +526,15 @@ func writeGrubCfgBackup(backupUuid, backupDevice, osDesc string,
 
 	err = ioutil.WriteFile(filename, buf.Bytes(), 0644)
 	if err != nil {
-		return err
+		return xerrors.Errorf("failed to write file %q: %w", filename, err)
 	}
 
 	err = runUpdateGrub(envVars)
 	if err != nil {
-		return err
+		return xerrors.Errorf("run update-grub err: %w", err)
 	}
 
-	return err
+	return nil
 }
 
 func writeGrubCfgBackupSw(backupUuid string, osDesc string, kFiles *kernelFiles,
