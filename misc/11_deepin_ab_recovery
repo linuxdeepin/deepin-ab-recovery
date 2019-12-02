@@ -16,7 +16,7 @@ else
 fi
 
 if [ -z "$DEEPIN_AB_RECOVERY_BACKUP_UUID" ]; then
-	exit 0
+    exit 0
 fi
 
 GRUB_DEVICE_UUID=$DEEPIN_AB_RECOVERY_BACKUP_UUID
@@ -26,43 +26,24 @@ LINUX_ROOT_DEVICE=UUID=${GRUB_DEVICE_UUID}
 
 linux_entry ()
 {
-  os="$1"
+  title="$1"
   version="$2"
-  type="$3"
-  args="$4"
+  args="$3"
 
   if [ -z "$boot_device_id" ]; then
       boot_device_id="$(grub_get_device_id "${GRUB_DEVICE}")"
   fi
-  if [ x$type != xsimple ] ; then
-      case $type in
-	  recovery)
-	      title="$(gettext_printf "%s, with Linux %s (%s)" "${os}" "${version}" "$(gettext "${GRUB_RECOVERY_TITLE}")")" ;;
-	  init-*)
-	      title="$(gettext_printf "%s, with Linux %s (%s)" "${os}" "${version}" "${type#init-}")" ;;
-	  *)
-	      title="$(gettext_printf "%s, with Linux %s" "${os}" "${version}")" ;;
-      esac
-      if [ x"$title" = x"$GRUB_ACTUAL_DEFAULT" ] || [ x"Previous Linux versions>$title" = x"$GRUB_ACTUAL_DEFAULT" ]; then
-	  replacement_title="$(echo "Advanced options for ${OS}" | sed 's,>,>>,g')>$(echo "$title" | sed 's,>,>>,g')"
-	  quoted="$(echo "$GRUB_ACTUAL_DEFAULT" | grub_quote)"
-	  title_correction_code="${title_correction_code}if [ \"x\$default\" = '$quoted' ]; then default='$(echo "$replacement_title" | grub_quote)'; fi;"
-	  grub_warn "$(gettext_printf "Please don't use old title \`%s' for GRUB_DEFAULT, use \`%s' (for versions before 2.00) or \`%s' (for 2.00 or later)" "$GRUB_ACTUAL_DEFAULT" "$replacement_title" "gnulinux-advanced-$boot_device_id>gnulinux-$version-$type-$boot_device_id")"
-      fi
-      echo "menuentry '$(echo "$title" | grub_quote)' ${CLASS} \$menuentry_id_option 'gnulinux-$version-$type-$boot_device_id' {" | sed "s/^/$submenu_indentation/"
-  else
-      echo "menuentry '$(echo "$os" | grub_quote)' ${CLASS} \$menuentry_id_option 'gnulinux-simple-$boot_device_id' {" | sed "s/^/$submenu_indentation/"
-  fi
+  echo "menuentry '$(echo "$title" | grub_quote)' ${CLASS} \$menuentry_id_option 'gnulinux-simple-$boot_device_id' {" | sed "s/^/$submenu_indentation/"
   if [ "$quick_boot" = 1 ]; then
       echo "	recordfail" | sed "s/^/$submenu_indentation/"
-  fi
-  if [ x$type != xrecovery ] ; then
-      save_default_entry | grub_add_tab
   fi
 
   # Use ELILO's generic "efifb" when it's known to be available.
   # FIXME: We need an interface to select vesafb in case efifb can't be used.
   arch=`uname -m`
+  if [ x"$arch" = x"mips64" ]; then
+      need_boot=1
+  fi
   if [ "x$GRUB_GFXPAYLOAD_LINUX" = x ] && [ "$arch" != "aarch64" ] ; then
       echo "	load_video" | sed "s/^/$submenu_indentation/"
   else
@@ -70,8 +51,7 @@ linux_entry ()
 	  echo "	load_video" | sed "s/^/$submenu_indentation/"
       fi
   fi
-  if ([ "$ubuntu_recovery" = 0 ] || [ x$type != xrecovery ]) && \
-     ([ "x$GRUB_GFXPAYLOAD_LINUX" != x ] || [ "$gfxpayload_dynamic" = 1 ]); then
+  if ([ "x$GRUB_GFXPAYLOAD_LINUX" != x ] || [ "$gfxpayload_dynamic" = 1 ]); then
       echo "	gfxmode \$linux_gfx_mode" | sed "s/^/$submenu_indentation/"
   fi
 
@@ -89,7 +69,7 @@ linux_entry ()
     fi
     printf '%s\n' "${prepare_boot_cache}" | sed "s/^/$submenu_indentation/"
   fi
-  if [ x"$quiet_boot" = x0 ] || [ x"$type" != xsimple ]; then
+  if [ x"$quiet_boot" = x0 ]; then
     message="$(gettext_printf "Loading Linux %s ..." ${version})"
     sed "s/^/$submenu_indentation/" << EOF
 	echo	'$(echo "$message" | grub_quote)'
@@ -106,7 +86,7 @@ EOF
   fi
   if test -n "${initrd}" ; then
     # TRANSLATORS: ramdisk isn't identifier. Should be translated.
-    if [ x"$quiet_boot" = x0 ] || [ x"$type" != xsimple ]; then
+    if [ x"$quiet_boot" = x0 ]; then
       message="$(gettext_printf "Loading initial ramdisk ...")"
       sed "s/^/$submenu_indentation/" << EOF
 	echo	'$(echo "$message" | grub_quote)'
@@ -115,6 +95,9 @@ EOF
     sed "s/^/$submenu_indentation/" << EOF
 	initrd	${rel_dirname}/${initrd}
 EOF
+  fi
+  if [ x"$need_boot" = x1 ]; then
+    echo "	boot" |sed "s/^/$submenu_indentation/"
   fi
   sed "s/^/$submenu_indentation/" << EOF
 }
@@ -150,5 +133,4 @@ linux_root_device_thisversion="${LINUX_ROOT_DEVICE}"
 backup_time=$(date +%c -d @$DEEPIN_AB_RECOVERY_BACKUP_TIME)
 menu_entry=$(printf "$(gettext -d deepin-ab-recovery 'Roll back to %s (%s)')" "$DEEPIN_AB_RECOVERY_OS_DESC" "$backup_time")
 
-linux_entry "$menu_entry" "${version}" simple \
-  "${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT}"
+linux_entry "$menu_entry" "${version}" "${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT}"

@@ -55,7 +55,19 @@ func runUpdateGrub(envVars []string) error {
 		return nil
 	}
 
-	cmd := exec.Command("grub-mkconfig", "-o", "/boot/grub/grub.cfg")
+	var cmd *exec.Cmd
+	updateGrubBin, err := exec.LookPath("update-grub")
+	if err == nil {
+		// found update-grub
+		logger.Debug("$ ", updateGrubBin)
+		cmd = exec.Command(updateGrubBin)
+	} else {
+		// not found update-grub
+		logger.Warning("not found command update-grub")
+		logger.Debug("$ grub-mkconfig -o /boot/grub/grub.cfg")
+		cmd = exec.Command("grub-mkconfig", "-o", "/boot/grub/grub.cfg")
+	}
+
 	cmd.Env = append(os.Environ(), envVars...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
