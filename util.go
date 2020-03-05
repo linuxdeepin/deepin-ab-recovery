@@ -187,3 +187,11 @@ func parseBoardInfo(data []byte) *mipsBoardInfo {
 		biosVersion: dict["Version"],
 	}
 }
+
+func getBootOptions() (string, error) {
+	content, err := ioutil.ReadFile("/proc/cmdline")
+	if err != nil {
+		return "", err
+	}
+	return string(content), nil
+}

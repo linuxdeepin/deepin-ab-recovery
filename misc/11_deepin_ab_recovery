@@ -96,6 +96,19 @@ EOF
 	initrd	${rel_dirname}/${initrd}
 EOF
   fi
+
+  if [ x"$dtbo" = x1 ]; then
+    if [ x"$quiet_boot" = x0 ]; then
+      message="$(gettext_printf "Loading device tree image ...")"
+      sed "s/^/$submenu_indentation/" << EOF
+	echo	'$(echo "$message" | grub_quote)'
+EOF
+    fi
+    sed "s/^/$submenu_indentation/" << EOF
+	devicetree ${dtbo_rel_dirname}/dtbo.img
+EOF
+  fi
+
   if [ x"$need_boot" = x1 ]; then
     echo "	boot" |sed "s/^/$submenu_indentation/"
   fi
@@ -127,10 +140,17 @@ linux=$DEEPIN_AB_RECOVERY_LINUX
 initrd=$DEEPIN_AB_RECOVERY_INITRD
 basename=`basename $linux`
 dirname=`dirname $linux`
+dtbo_dirname=`dirname $dirname`
 rel_dirname=`make_system_path_relative_to_its_root $dirname`
+dtbo_rel_dirname=`make_system_path_relative_to_its_root $dtbo_dirname`
 version=`echo $basename | sed -e "s,^[^0-9]*-,,g"`
 linux_root_device_thisversion="${LINUX_ROOT_DEVICE}"
 backup_time=$(date +%c -d @$DEEPIN_AB_RECOVERY_BACKUP_TIME)
 menu_entry=$(printf "$(gettext -d deepin-ab-recovery 'Roll back to %s (%s)')" "$DEEPIN_AB_RECOVERY_OS_DESC" "$backup_time")
+
+if test -e "$dtbo_dirname/dtbo.img"; then
+	dtbo=1
+fi
+
 
 linux_entry "$menu_entry" "${version}" "${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT}"

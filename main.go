@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"pkg.deepin.io/lib/strv"
 	"runtime"
 	"strconv"
 	"strings"
@@ -304,8 +305,18 @@ func backupKernel() (kFiles *kernelFiles, err error) {
 	if err != nil {
 		return
 	}
-	kFiles, err = findKernelFiles(utsName.release,
-		utsName.machine)
+	release := utsName.release
+	bootOpts, err := getBootOptions()
+	if err == nil {
+		releaseBo := getKernelReleaseWithBootOption(bootOpts)
+		if releaseBo != "" {
+			release = releaseBo
+		}
+	} else {
+		logger.Warning(err)
+	}
+
+	kFiles, err = findKernelFiles(release, utsName.machine)
 	if err != nil {
 		return
 	}
@@ -358,7 +369,29 @@ func getGenKernelArch(machine string) string {
 	}
 }
 
-func findKernelFiles(release, machine string) (*kernelFiles, error) {
+func getKernelReleaseWithBootOption(options string) string {
+	var bootImg string
+	for _, part := range strings.Split(options, " ") {
+		if strings.HasPrefix(part, "BOOT_IMAGE=") {
+			bootImg = strings.TrimSpace(strings.TrimPrefix(part, "BOOT_IMAGE="))
+			break
+		}
+	}
+	if bootImg == "" {
+		return ""
+	}
+	bootImg = filepath.Base(bootImg)
+	var result string
+	for _, prefix := range []string{"vmlinuz-", "vmlinux-", "kernel-"} {
+		result = strings.TrimPrefix(bootImg, prefix)
+		if len(result) != len(bootImg) {
+			return result
+		}
+	}
+	return ""
+}
+
+func findKernelFilesAux(release, machine string, files strv.Strv) (*kernelFiles, error) {
 	var result kernelFiles
 	prefixes := []string{"vmlinuz-", "vmlinux-", "kernel-"}
 	switch machine {
@@ -368,14 +401,12 @@ func findKernelFiles(release, machine string) (*kernelFiles, error) {
 
 	// linux
 	for _, prefix := range prefixes {
-		filename := filepath.Join(globalBootDir, prefix+release)
-		_, err := os.Stat(filename)
-		if err != nil {
-			continue
+		fileBasename := prefix + release
+		if files.Contains(fileBasename) {
+			filename := filepath.Join(globalBootDir, fileBasename)
+			result.linux = filename
+			break
 		}
-
-		result.linux = filename
-		break
 	}
 
 	if result.linux == "" {
@@ -398,20 +429,33 @@ func findKernelFiles(release, machine string) (*kernelFiles, error) {
 		"initramfs-genkernel-${genKernelArch}-${version}",
 		"initramfs-genkernel-${genKernelArch}-${altVersion}",
 	} {
-		filename := filepath.Join(globalBootDir, replacer.Replace(format))
-		_, err := os.Stat(filename)
-		if err != nil {
-			continue
+		fileBasename := replacer.Replace(format)
+		if files.Contains(fileBasename) {
+			filename := filepath.Join(globalBootDir, fileBasename)
+			result.initrd = filename
+			break
 		}
-
-		result.initrd = filename
-		break
 	}
 	if result.initrd == "" {
 		return nil, errors.New("findKernelFiles: not found initrd")
 	}
 
 	return &result, nil
+}
+
+func findKernelFiles(release, machine string) (*kernelFiles, error) {
+	fileInfoList, err := ioutil.ReadDir(globalBootDir)
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, info := range fileInfoList {
+		if info.IsDir() {
+			continue
+		}
+		files = append(files, info.Name())
+	}
+	return findKernelFilesAux(release, machine, files)
 }
 
 func restore(cfg *Config, envVars []string) error {

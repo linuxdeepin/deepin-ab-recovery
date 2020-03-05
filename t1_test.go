@@ -133,3 +133,34 @@ func TestWriteExcludeFile(t *testing.T) {
 	err = os.Remove(filename)
 	assert.Nil(t, err)
 }
+
+func TestFindKernelFiles(t *testing.T) {
+	globalBootDir = "/boot"
+	result, err := findKernelFilesAux("4.19.0-6-amd64", "x86_64", []string{
+		"config-4.19.0-6-amd64", "initrd.img-4.19.0-6-amd64",
+		"System.map-4.19.0-6-amd64", "vmlinuz-4.19.0-6-amd64",
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, "/boot/vmlinuz-4.19.0-6-amd64", result.linux)
+	assert.Equal(t, "/boot/initrd.img-4.19.0-6-amd64", result.initrd)
+
+	result, err = findKernelFilesAux("4.19.0-arm64-desktop", "aarch64", []string{
+		"config-4.19.0-arm64-desktop", "initrd.img-4.19.0-arm64-desktop",
+		"initrd.img-4.19.34-1deepin-generic", "dtbo.img",
+		"System.map-4.19.0-arm64-desktop", "vmlinuz-4.19.0-arm64-desktop",
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, "/boot/vmlinuz-4.19.0-arm64-desktop", result.linux)
+	assert.Equal(t, "/boot/initrd.img-4.19.0-arm64-desktop", result.initrd)
+}
+
+func TestGetKernelReleaseWithBootOption(t *testing.T) {
+	result := getKernelReleaseWithBootOption("BOOT_IMAGE=/boot/vmlinuz-4.19.0-6-amd64 root=UUID=f18109bb-57ab-4b0f-8bae-a000e59e720a ro splash quiet DEEPIN_GFXMODE=0,1920x1080,1152x864,1600x1200,1280x1024,1024x768")
+	assert.Equal(t, "4.19.0-6-amd64", result)
+
+	result = getKernelReleaseWithBootOption("root=UUID=f18109bb-57ab-4b0f-8bae-a000e59e720a ro BOOT_IMAGE=/boot/vmlinuz-4.19.0-6-amd64 splash quiet DEEPIN_GFXMODE=0,1920x1080,1152x864,1600x1200,1280x1024,1024x768")
+	assert.Equal(t, "4.19.0-6-amd64", result)
+
+	result = getKernelReleaseWithBootOption("BOOT_IMAGE=/vmlinuz-4.19.0-arm64-desktop root=UUID=f436eb5f-f471-42d9-b750-49987284e4f5 ro splash earlycon=pl011,0xFFF02000 maxcpus=8 initcall_debug=y printktimer=0xfa89b000,0x534,0x538 rcupdate.rcu_expedited=1 buildvariant=eng pmu_nv_addr=0x0 boardid=0x2456 normal_reset_type=fastbootd boot_slice=0x107573 reboot_reason=COLD_BOOT exception_subtype=no last_bootup_keypoint=38 swiotlb=2 dma_zone_only=true kce_status=0 efuse_status=2 nokaslr hhee_enable=false console=ttyAMA6,115200 console=tty quiet loglevel=0 systemd.debug-shell=1 DEEPIN_GFXMODE=")
+	assert.Equal(t, "4.19.0-arm64-desktop", result)
+}
