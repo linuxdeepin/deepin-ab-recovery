@@ -152,6 +152,16 @@ func TestFindKernelFiles(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "/boot/vmlinuz-4.19.0-arm64-desktop", result.linux)
 	assert.Equal(t, "/boot/initrd.img-4.19.0-arm64-desktop", result.initrd)
+
+	// without initrd
+	result, err = findKernelFilesAux("4.19.0-arm64-desktop", "aarch64", []string{
+		"config-4.19.0-arm64-desktop",
+		"dtbo.img",
+		"System.map-4.19.0-arm64-desktop", "vmlinuz-4.19.0-arm64-desktop",
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, "/boot/vmlinuz-4.19.0-arm64-desktop", result.linux)
+	assert.Equal(t, "", result.initrd)
 }
 
 func TestGetKernelReleaseWithBootOption(t *testing.T) {

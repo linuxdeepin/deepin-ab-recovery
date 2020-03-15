@@ -332,10 +332,12 @@ func backupKernel() (kFiles *kernelFiles, err error) {
 	}
 
 	// copy initrd
-	initrdBackup := filepath.Join(globalKernelBackupDir, filepath.Base(kFiles.initrd))
-	err = utils.CopyFile(kFiles.initrd, initrdBackup)
-	if err != nil {
-		return
+	if kFiles.initrd != "" {
+		initrdBackup := filepath.Join(globalKernelBackupDir, filepath.Base(kFiles.initrd))
+		err = utils.CopyFile(kFiles.initrd, initrdBackup)
+		if err != nil {
+			return
+		}
 	}
 
 	err = os.RemoveAll(globalKernelBackupDir + ".old")
@@ -436,9 +438,7 @@ func findKernelFilesAux(release, machine string, files strv.Strv) (*kernelFiles,
 			break
 		}
 	}
-	if result.initrd == "" {
-		return nil, errors.New("findKernelFiles: not found initrd")
-	}
+	// allow initrd not found
 
 	return &result, nil
 }
@@ -563,7 +563,9 @@ func writeGrubCfgBackup(backupUuid, backupDevice, osDesc string,
 		backupUuid, backupDevice))
 	buf.WriteString(varPrefix + "LINUX=\"" + filepath.Join(globalKernelBackupDir,
 		filepath.Base(kFiles.linux)) + "\"\n")
-	buf.WriteString(varPrefix + "INITRD=\"" + filepath.Base(kFiles.initrd) + "\"\n")
+	if kFiles.initrd != "" {
+		buf.WriteString(varPrefix + "INITRD=\"" + filepath.Base(kFiles.initrd) + "\"\n")
+	}
 	buf.WriteString(varPrefix + "OS_DESC=\"" + osDesc + "\"\n")
 	buf.WriteString(varPrefix + "BACKUP_TIME=" + strconv.FormatInt(backupTime.Unix(), 10))
 
