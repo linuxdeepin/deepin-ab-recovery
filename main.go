@@ -88,8 +88,6 @@ func main() {
 		}
 	} else if isArchSw() {
 		globalNoGrubMkconfig = true
-	} else if isArchArm() {
-		globalGrubMenuEn = true
 	}
 
 	if options.noGrubMkconfig {
@@ -558,6 +556,7 @@ func writeGrubCfgBackup(backupUuid, backupDevice, osDesc string,
 	}
 	const varPrefix = "DEEPIN_AB_RECOVERY_"
 	var buf bytes.Buffer
+	buf.WriteString(varPrefix + "BACKUP_DEVICE=" + backupDevice + "\n")
 	buf.WriteString(varPrefix + "BACKUP_UUID=" + backupUuid + "\n")
 	buf.WriteString(fmt.Sprintf("GRUB_OS_PROBER_SKIP_LIST=\"$GRUB_OS_PROBER_SKIP_LIST %s@%s\"\n",
 		backupUuid, backupDevice))
@@ -567,7 +566,7 @@ func writeGrubCfgBackup(backupUuid, backupDevice, osDesc string,
 		buf.WriteString(varPrefix + "INITRD=\"" + filepath.Base(kFiles.initrd) + "\"\n")
 	}
 	buf.WriteString(varPrefix + "OS_DESC=\"" + osDesc + "\"\n")
-	buf.WriteString(varPrefix + "BACKUP_TIME=" + strconv.FormatInt(backupTime.Unix(), 10))
+	buf.WriteString(varPrefix + "BACKUP_TIME=" + strconv.FormatInt(backupTime.Unix(), 10) + "\n")
 
 	err = ioutil.WriteFile(filename, buf.Bytes(), 0644)
 	if err != nil {
