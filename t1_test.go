@@ -64,34 +64,6 @@ func TestIsMounted(t *testing.T) {
 	assert.False(t, isMountedAux([]byte(mountsInfo), "/dev/sda3"))
 }
 
-func TestGetDeviceByUuid(t *testing.T) {
-	_, err := exec.LookPath("ls")
-	if err != nil {
-		t.Skip("not found command ls")
-	}
-	_, err = exec.LookPath("head")
-	if err != nil {
-		t.Skip("not found command head")
-	}
-
-	_, err = os.Stat("/dev/disk")
-	if err != nil {
-		t.Skip("disk not found")
-	}
-
-	out, err := exec.Command("sh", "-c", "ls /dev/disk/by-uuid|head -n1").Output()
-	if err != nil {
-		t.Error(err)
-	}
-	out = bytes.TrimSpace(out)
-	if len(out) == 0 {
-		t.Skip("disk not found")
-	}
-	dev, err := getDeviceByUuid(string(out))
-	assert.Nil(t, err)
-	t.Log("device:", dev)
-}
-
 func TestUname(t *testing.T) {
 	utsName, err := uname()
 	assert.Nil(t, err)
@@ -173,4 +145,29 @@ func TestGetKernelReleaseWithBootOption(t *testing.T) {
 
 	result = getKernelReleaseWithBootOption("BOOT_IMAGE=/vmlinuz-4.19.0-arm64-desktop root=UUID=f436eb5f-f471-42d9-b750-49987284e4f5 ro splash earlycon=pl011,0xFFF02000 maxcpus=8 initcall_debug=y printktimer=0xfa89b000,0x534,0x538 rcupdate.rcu_expedited=1 buildvariant=eng pmu_nv_addr=0x0 boardid=0x2456 normal_reset_type=fastbootd boot_slice=0x107573 reboot_reason=COLD_BOOT exception_subtype=no last_bootup_keypoint=38 swiotlb=2 dma_zone_only=true kce_status=0 efuse_status=2 nokaslr hhee_enable=false console=ttyAMA6,115200 console=tty quiet loglevel=0 systemd.debug-shell=1 DEEPIN_GFXMODE=")
 	assert.Equal(t, "4.19.0-arm64-desktop", result)
+}
+
+const lsblkUuidPath1 = `UUID="" PATH="/dev/sda"
+UUID="309ca993-66a3-469d-bb6e-22a4b2d800da" PATH="/dev/sda1"
+UUID="eb5aaf62-4375-47a4-b518-68e3973b153e" PATH="/dev/sda2"
+UUID="" PATH="/dev/sdb"
+UUID="" PATH="/dev/sdb1"
+UUID="" PATH="/dev/sr0"
+UUID="cWU76A-fvpc-NlSD-Xw3z-G4qQ-4yWg-jDvnsj" PATH="/dev/mapper/luks_crypt0"
+UUID="8b7aec2d-9084-4969-a13a-405d1d5ec82e" PATH="/dev/mapper/vg0-Roota"
+UUID="e4376f24-55e9-4980-8d2e-003dde15ff83" PATH="/dev/mapper/vg0-Rootb"
+UUID="55c8bfaf-89b1-4453-8780-7efa4ead39d5" PATH="/dev/mapper/vg0-_dde_data"
+UUID="0a96531e-e9c0-4e9e-b01f-eb98c5f619bd" PATH="/dev/mapper/vg0-Backup"
+UUID="1c461280-bf0c-451f-8033-3e1041b71e6e" PATH="/dev/mapper/vg0-SWAP"
+`
+
+func TestGetPathFromLsblkOutput(t *testing.T) {
+	ret := getPathFromLsblkOutput(lsblkUuidPath1, "e4376f24-55e9-4980-8d2e-003dde15ff83")
+	assert.Equal(t, "/dev/mapper/vg0-Rootb", ret)
+
+	ret = getPathFromLsblkOutput(lsblkUuidPath1, "e4376f24-55e9-4980-8d2e-003dde15ff831")
+	assert.Equal(t, "", ret)
+
+	ret = getPathFromLsblkOutput(lsblkUuidPath1, "")
+	assert.Equal(t, "", ret)
 }

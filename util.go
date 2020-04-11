@@ -2,12 +2,16 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
+
+	"golang.org/x/xerrors"
 )
 
 func isArchSw() bool {
@@ -103,8 +107,37 @@ func hasDiskDevice(uuid string) bool {
 }
 
 func getDeviceByUuid(uuid string) (string, error) {
-	device, err := filepath.EvalSymlinks(filepath.Join("/dev/disk/by-uuid", uuid))
-	return device, err
+	if uuid == "" {
+		return "", xerrors.New("parameter uuid is empty")
+	}
+	out, err := exec.Command("lsblk", "-P", "-n", "-o", "UUID,PATH").Output()
+	if err != nil {
+		return "", xerrors.Errorf("failed to run lsblk: %w", err)
+	}
+	devPath := getPathFromLsblkOutput(string(out), uuid)
+	if devPath == "" {
+		return "", xerrors.New("failed to get device path from lsblk output")
+	}
+	return devPath, nil
+}
+
+func getPathFromLsblkOutput(out string, uuid string) string {
+	if uuid == "" {
+		return ""
+	}
+	lines := strings.Split(out, "\n")
+	uuidSubstr := fmt.Sprintf("UUID=%q", uuid)
+	for _, line := range lines {
+		if strings.Contains(line, uuidSubstr) {
+			pathReg := regexp.MustCompile(`PATH="(.+)"`)
+			match := pathReg.FindStringSubmatch(line)
+			if match != nil {
+				return match[1]
+			}
+			break
+		}
+	}
+	return ""
 }
 
 func isMounted(mountPoint string) (bool, error) {
