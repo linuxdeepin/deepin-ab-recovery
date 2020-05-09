@@ -178,7 +178,7 @@ func backup(cfg *Config, envVars []string) error {
 			backupDevice, backupMountPoint, err)
 	}
 	defer func() {
-		exec.Command("mount","-o","rw",",","remount","/boot").Run()
+		exec.Command("mount","/boot","-o","ro,remount").Run()
 		err := exec.Command("umount", backupMountPoint).Run()
 		if err != nil {
 			logger.Warning("failed to unmount backup directory:", err)
