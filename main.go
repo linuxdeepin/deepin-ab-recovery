@@ -384,7 +384,7 @@ func getKernelReleaseWithBootOption(options string) string {
 	}
 	bootImg = filepath.Base(bootImg)
 	var result string
-	for _, prefix := range []string{"vmlinuz-", "vmlinux-", "kernel-"} {
+	for _, prefix := range []string{"vmlinuz-", "vmlinux-", "kernel"} {
 		result = strings.TrimPrefix(bootImg, prefix)
 		if len(result) != len(bootImg) {
 			return result
@@ -395,8 +395,8 @@ func getKernelReleaseWithBootOption(options string) string {
 
 func findKernelFilesAux(release, machine string, files strv.Strv) (*kernelFiles, error) {
 	var result kernelFiles
-	prefixes := []string{"vmlinuz-", "vmlinux-", "kernel-"}
-	switch machine {
+	/*prefixes := []string{"vmlinuz-", "vmlinux-", "kernel-"}
+	/*switch machine {
 	case "i386", "i686", "x86_64":
 		prefixes = []string{"vmlinuz-", "kernel-"}
 	}
@@ -409,7 +409,11 @@ func findKernelFilesAux(release, machine string, files strv.Strv) (*kernelFiles,
 			result.linux = filename
 			break
 		}
-	}
+	}*/
+
+	//针对KLU的改动,如因找不到kernel文件,请修改此处
+	result.linux = "/boot/kernel"
+
 
 	if result.linux == "" {
 		return nil, errors.New("findKernelFiles: not found linux")
