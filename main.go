@@ -468,6 +468,12 @@ func restore(cfg *Config, envVars []string) error {
 	if err != nil {
 		return xerrors.Errorf("failed to write grub cfg: %w", err)
 	}
+	
+	// delete cache archive files
+	err = exec.Command("/usr/bin/lastore-apt-clean", "-force-delete").Run()
+	if err != nil {
+		logger.Warning("failed to delete archive files:", err)
+	}
 
 	// swap current and backup
 	cfg.Current, cfg.Backup = cfg.Backup, cfg.Current
