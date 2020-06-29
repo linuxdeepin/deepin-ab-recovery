@@ -96,7 +96,8 @@ func main() {
 	if options.grubCfgFile != "" {
 		globalGrubCfgFile = options.grubCfgFile
 	}
-	if options.grubMenuEn {
+
+	if options.grubMenuEn || isArchMips() {
 		globalGrubMenuEn = true
 	}
 
