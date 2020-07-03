@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"pkg.deepin.io/lib/strv"
 	"runtime"
 	"strconv"
 	"strings"
@@ -23,6 +22,7 @@ import (
 	"pkg.deepin.io/lib/dbusutil"
 	"pkg.deepin.io/lib/log"
 	"pkg.deepin.io/lib/procfs"
+	"pkg.deepin.io/lib/strv"
 	"pkg.deepin.io/lib/utils"
 )
 
@@ -32,6 +32,10 @@ const (
 	configFile            = "/etc/deepin/ab-recovery.json"
 	backupMountPoint      = "/deepin-ab-recovery-backup"
 	abRecoveryGrubCfgFile = "/etc/default/grub.d/11_deepin_ab_recovery.cfg"
+	abRecoveryFile        = "/usr/lib/deepin-daemon/ab-recovery"
+	ddeWelcomeFile        = "/usr/lib/deepin-daemon/dde-welcome"
+	grubLinuxBarFile      = "/etc/grub.d/15_linux_bar"
+	abKernelBackupDir     = "/boot/kernel-backup/"
 )
 
 var globalNoGrubMkconfig bool
@@ -52,12 +56,14 @@ var options struct {
 	grubCfgFile    string
 	bootDir        string
 	grubMenuEn     bool
+	fixBackup      bool
 }
 
 func init() {
 	flag.BoolVar(&options.noRsync, "no-rsync", false, "")
 	flag.BoolVar(&options.noGrubMkconfig, "no-grub-mkconfig", false, "")
 	flag.BoolVar(&options.grubMenuEn, "grub-menu-en", false, "grub menu entry use english")
+	flag.BoolVar(&options.fixBackup, "fix-backup", false, "Fix bugs in backup partition")
 	flag.StringVar(&options.arch, "arch", "", "")
 	flag.StringVar(&options.grubCfgFile, "grub-cfg", "", "")
 	flag.StringVar(&options.bootDir, "boot", "", "")
@@ -106,6 +112,14 @@ func main() {
 	}
 	globalKernelBackupDir = filepath.Join(globalBootDir, "deepin-ab-recovery")
 
+	if options.fixBackup {
+		err := fixBackup()
+		if err != nil {
+			logger.Fatal("failed to fix backup error:", err)
+		}
+		return
+	}
+
 	logger.Debug("arch:", globalArch)
 	logger.Debug("noGrubMkConfig:", globalNoGrubMkconfig)
 	logger.Debug("usePmonBios:", globalUsePmonBios)
@@ -144,7 +158,7 @@ func main() {
 func backup(cfg *Config, envVars []string) error {
 	backupUuid := cfg.Backup
 	backupDevice, err := getDeviceByUuid(backupUuid)
-	exec.Command("mount","/boot","-o","rw,remount").Run()
+	exec.Command("mount", "/boot", "-o", "rw,remount").Run()
 	if err != nil {
 		return xerrors.Errorf("failed to get backup device by uuid %q: %w", backupUuid, err)
 	}
@@ -179,7 +193,7 @@ func backup(cfg *Config, envVars []string) error {
 			backupDevice, backupMountPoint, err)
 	}
 	defer func() {
-		exec.Command("mount","/boot","-o","ro,remount").Run()
+		exec.Command("mount", "/boot", "-o", "ro,remount").Run()
 		err := exec.Command("umount", backupMountPoint).Run()
 		if err != nil {
 			logger.Warning("failed to unmount backup directory:", err)
@@ -281,7 +295,7 @@ func runRsync(excludeFile string) error {
 }
 
 func backupKernel() (kFiles *kernelFiles, err error) {
-	exec.Command("mount","/boot","-o","rw,remount").Run()
+	exec.Command("mount", "/boot", "-o", "rw,remount").Run()
 	err = os.RemoveAll(globalKernelBackupDir + ".old")
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -459,17 +473,143 @@ func findKernelFiles(release, machine string) (*kernelFiles, error) {
 	return findKernelFilesAux(release, machine, files)
 }
 
+func fixBackup() error {
+	mounted, err := isMounted(backupMountPoint)
+	if err != nil {
+		return err
+	}
+	if mounted {
+		err = exec.Command("umount", backupMountPoint).Run()
+		if err != nil {
+			return xerrors.Errorf("failed to unmount %s: %w", backupMountPoint, err)
+		}
+	}
+	err = os.Mkdir(backupMountPoint, 0755)
+	if err != nil && !os.IsExist(err) {
+		return err
+	}
+	defer func() {
+		err = os.Remove(backupMountPoint)
+		if err != nil {
+			logger.Warning("failed to remove backup mount point:", err)
+		}
+	}()
+
+	var cfg Config
+	err = loadConfig(configFile, &cfg)
+	if err != nil {
+		return err
+	}
+	backupUuid := cfg.Backup
+	backupDevice, err := getDeviceByUuid(backupUuid)
+
+	err = exec.Command("mount", backupDevice, backupMountPoint).Run()
+	if err != nil {
+		return xerrors.Errorf("failed to mount device %q to dir %q: %w",
+			backupDevice, backupMountPoint, err)
+	}
+	defer func() {
+		err := exec.Command("umount", backupMountPoint).Run()
+		if err != nil {
+			logger.Warning("failed to unmount backup directory:", err)
+		}
+	}()
+
+	// 替换备份盘中的恢复程序
+	err = utils.CopyFile(abRecoveryFile, filepath.Join(backupMountPoint, abRecoveryFile))
+	if err != nil {
+		return err
+	}
+	// 暂时屏蔽真dde-welcome运行
+	_, err = os.Stat(ddeWelcomeFile)
+	if err == nil {
+		err = os.Rename(filepath.Join(backupMountPoint, ddeWelcomeFile), filepath.Join(backupMountPoint, ddeWelcomeFile+".save"))
+		if err != nil {
+			return err
+		}
+		var content = []byte("#!/bin/sh\nexec /usr/bin/true")
+		err = ioutil.WriteFile(filepath.Join(backupMountPoint, ddeWelcomeFile), content, 0755)
+		if err != nil {
+			return err
+		}
+	}
+	// 删除备份分区/etc/grub.d/15_linux_bar
+	fileInfoList, err := ioutil.ReadDir("/boot/deepin")
+	if err != nil || len(fileInfoList) == 0 {
+		err = os.Remove(filepath.Join(backupMountPoint, grubLinuxBarFile))
+		if err != nil && !os.IsNotExist(err) {
+			logger.Warningf("remove %s failed:%v", filepath.Join(backupMountPoint, grubLinuxBarFile), err)
+		}
+	}
+
+	return nil
+}
+
 func restore(cfg *Config, envVars []string) error {
 	currentDevice, err := getDeviceByUuid(cfg.Current)
 	if err != nil {
 		return xerrors.Errorf("failed to get device by uuid %q: %w", cfg.Current, err)
 	}
 
+	_, err = os.Stat(ddeWelcomeFile + ".save")
+	if err == nil {
+		err = os.Rename(ddeWelcomeFile+".save", ddeWelcomeFile)
+		if err != nil {
+			logger.Warning("failed to restore dde-welcome:", err)
+		}
+	}
+
+	// 创建备份文件夹
+	err = os.MkdirAll(abKernelBackupDir, 0755)
+	if err != nil {
+		return xerrors.Errorf("failed to make dir %s: %w", abKernelBackupDir, err)
+	}
+
+	// 移动内核文件到/boot/kernel-backup/
+	fileInfoList, err := ioutil.ReadDir(globalBootDir)
+	if err != nil {
+		return xerrors.Errorf("failed to read dir %s: %w", globalBootDir, err)
+	}
+	prefixes := []string{"vmlinuz-", "vmlinux-", "kernel-", "initrd"}
+	for _, fix := range prefixes {
+		for _, info := range fileInfoList {
+			if info.IsDir() {
+				continue
+			}
+			if strings.Contains(info.Name(), fix) {
+				err = os.Rename(filepath.Join(globalBootDir, info.Name()),
+					filepath.Join(abKernelBackupDir, info.Name()))
+				if err != nil {
+					logger.Warning("backup kernel failed:", info.Name(), err)
+				}
+			}
+		}
+	}
+
+	// 将/boot/deepin-ab-recovery文件内核文件移动到 /boot
+	fileInfoList, err = ioutil.ReadDir(globalKernelBackupDir)
+	if err != nil {
+		return xerrors.Errorf("failed to read dir %s: %w", globalKernelBackupDir, err)
+	}
+
+	for _, info := range fileInfoList {
+		err = utils.CopyFile(filepath.Join(globalKernelBackupDir, info.Name()), filepath.Join(globalBootDir, info.Name()))
+		if err != nil {
+			logger.Warning("copy recovery file failed:", err)
+			return err
+		}
+	}
+
+	err = os.RemoveAll(globalKernelBackupDir)
+	if err != nil {
+		logger.Warning("Remove dir failed:", globalKernelBackupDir, err)
+	}
+
 	err = writeGrubCfgRestore(cfg.Current, currentDevice, cfg.Backup, envVars)
 	if err != nil {
 		return xerrors.Errorf("failed to write grub cfg: %w", err)
 	}
-	
+
 	// delete cache archive files
 	err = exec.Command("/usr/bin/lastore-apt-clean", "-force-delete").Run()
 	if err != nil {
