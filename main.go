@@ -531,18 +531,22 @@ func fixBackup() error {
 		return err
 	}
 	// 暂时屏蔽真dde-welcome运行
-	ddeWelcomeFileInfo, err := os.Stat(ddeWelcomeFile)
-	if err == nil && ddeWelcomeFileInfo.Size() > 100 {
-		err = os.Rename(filepath.Join(backupMountPoint, ddeWelcomeFile), filepath.Join(backupMountPoint, ddeWelcomeFile+".save"))
+	backupDDEWelcomeFile := filepath.Join(backupMountPoint, ddeWelcomeFile)
+	backupDDEWelcomeFileInfo, err := os.Stat(backupDDEWelcomeFile)
+	if err == nil && backupDDEWelcomeFileInfo != nil &&
+		backupDDEWelcomeFileInfo.Size() > 100 {
+
+		err = os.Rename(backupDDEWelcomeFile, backupDDEWelcomeFile+".save")
 		if err != nil {
 			return err
 		}
 		var content = []byte("#!/bin/sh\nexec /usr/bin/true")
-		err = ioutil.WriteFile(filepath.Join(backupMountPoint, ddeWelcomeFile), content, 0755)
+		err = ioutil.WriteFile(backupDDEWelcomeFile, content, 0755)
 		if err != nil {
 			return err
 		}
 	}
+
 	// 删除备份分区/etc/grub.d/15_linux_bar
 	fileInfoList, err := ioutil.ReadDir("/boot/deepin")
 	if err != nil || len(fileInfoList) == 0 {
