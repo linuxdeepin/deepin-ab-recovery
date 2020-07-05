@@ -2,6 +2,6 @@
 # postinst script 
 case "$1" in
     configure)
-    /usr/lib/deepin-daemon/ab-recovery -fix-backup
+    /usr/lib/deepin-daemon/ab-recovery -fix-backup || echo
     ;;
 esac

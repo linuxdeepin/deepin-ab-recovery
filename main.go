@@ -474,6 +474,21 @@ func findKernelFiles(release, machine string) (*kernelFiles, error) {
 }
 
 func fixBackup() error {
+	var cfg Config
+	err := loadConfig(configFile, &cfg)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// 不存在配置文件，不能备份，立即返回
+			return nil
+		}
+		return xerrors.Errorf("load config: %w", err)
+	}
+	backupUuid := cfg.Backup
+	backupDevice, err := getDeviceByUuid(backupUuid)
+	if err != nil {
+		return xerrors.Errorf("get backup device by backup uuid: %w", err)
+	}
+
 	mounted, err := isMounted(backupMountPoint)
 	if err != nil {
 		return err
@@ -495,14 +510,6 @@ func fixBackup() error {
 		}
 	}()
 
-	var cfg Config
-	err = loadConfig(configFile, &cfg)
-	if err != nil {
-		return err
-	}
-	backupUuid := cfg.Backup
-	backupDevice, err := getDeviceByUuid(backupUuid)
-
 	err = exec.Command("mount", backupDevice, backupMountPoint).Run()
 	if err != nil {
 		return xerrors.Errorf("failed to mount device %q to dir %q: %w",
@@ -511,18 +518,28 @@ func fixBackup() error {
 	defer func() {
 		err := exec.Command("umount", backupMountPoint).Run()
 		if err != nil {
-			logger.Warning("failed to unmount backup directory:", err)
+			logger.Warning("failed to umount backup directory:", err)
 		}
 	}()
 
 	// 替换备份盘中的恢复程序
-	err = utils.CopyFile(abRecoveryFile, filepath.Join(backupMountPoint, abRecoveryFile))
+	backupPartitionAbRecoveryFile := filepath.Join(backupMountPoint, abRecoveryFile)
+	_, err = os.Stat(filepath.Dir(backupPartitionAbRecoveryFile))
+	if err != nil {
+		if os.IsNotExist(err) {
+			// 目前备份分区为空，不修正
+			return nil
+		}
+		return xerrors.Errorf("stat dir: %w", err)
+	}
+
+	err = utils.CopyFile(abRecoveryFile, backupPartitionAbRecoveryFile)
 	if err != nil {
 		return err
 	}
 	// 暂时屏蔽真dde-welcome运行
-	_, err = os.Stat(ddeWelcomeFile)
-	if err == nil {
+	ddeWelcomeFileInfo, err := os.Stat(ddeWelcomeFile)
+	if err == nil && ddeWelcomeFileInfo.Size() > 100 {
 		err = os.Rename(filepath.Join(backupMountPoint, ddeWelcomeFile), filepath.Join(backupMountPoint, ddeWelcomeFile+".save"))
 		if err != nil {
 			return err
