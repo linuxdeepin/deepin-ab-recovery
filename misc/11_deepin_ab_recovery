@@ -137,7 +137,7 @@ case "x$machine" in
   xmips*)
     export LC_ALL=C
     ;;
-  xarm*)
+  xaarch*)
     export LC_ALL=C
     ;;
 esac
