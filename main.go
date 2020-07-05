@@ -158,11 +158,6 @@ func main() {
 func backup(cfg *Config, envVars []string) error {
 	backupUuid := cfg.Backup
 	backupDevice, err := getDeviceByUuid(backupUuid)
-	exec.Command("mount", "/boot", "-o", "rw,remount").Run()
-	if err != nil {
-		return xerrors.Errorf("failed to get backup device by uuid %q: %w", backupUuid, err)
-	}
-
 	logger.Debug("backup device:", backupDevice)
 
 	mounted, err := isMounted(backupMountPoint)
@@ -193,7 +188,6 @@ func backup(cfg *Config, envVars []string) error {
 			backupDevice, backupMountPoint, err)
 	}
 	defer func() {
-		exec.Command("mount", "/boot", "-o", "ro,remount").Run()
 		err := exec.Command("umount", backupMountPoint).Run()
 		if err != nil {
 			logger.Warning("failed to unmount backup directory:", err)
@@ -295,7 +289,6 @@ func runRsync(excludeFile string) error {
 }
 
 func backupKernel() (kFiles *kernelFiles, err error) {
-	exec.Command("mount", "/boot", "-o", "rw,remount").Run()
 	err = os.RemoveAll(globalKernelBackupDir + ".old")
 	if err != nil {
 		if !os.IsNotExist(err) {

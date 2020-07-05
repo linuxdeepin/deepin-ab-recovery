@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"golang.org/x/xerrors"
+	"pkg.deepin.io/lib/strv"
 )
 
 func isArchSw() bool {
@@ -155,6 +156,31 @@ func isMountedAux(data []byte, mountPoint string) bool {
 		if len(fields) >= 2 {
 			if string(fields[1]) == mountPoint {
 				return true
+			}
+		}
+	}
+	return false
+}
+
+func isMountedRo(mountPoint string) (bool, error) {
+	content, err := ioutil.ReadFile("/proc/self/mounts")
+	if err != nil {
+		return false, err
+	}
+	return isMountedRoAux(content, mountPoint), nil
+}
+
+func isMountedRoAux(data []byte, mountPoint string) bool {
+	lines := bytes.Split(data, []byte{'\n'})
+	for _, line := range lines {
+		fields := bytes.Split(line, []byte{' '})
+		if len(fields) >= 4 {
+			if string(fields[1]) == mountPoint {
+				optionsStr := string(fields[3])
+				options := strv.Strv(strings.Split(optionsStr, ","))
+				if options.Contains("ro") {
+					return true
+				}
 			}
 		}
 	}

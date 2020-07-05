@@ -2,9 +2,11 @@ package main
 
 import (
 	"errors"
+	"os/exec"
 	"sync"
 	"syscall"
 
+	"golang.org/x/xerrors"
 	"pkg.deepin.io/lib/dbus1"
 	"pkg.deepin.io/lib/dbusutil"
 )
@@ -168,7 +170,7 @@ func (m *Manager) startBackup(envVars []string) error {
 	go func() {
 		err := m.backup(envVars)
 		if err != nil {
-			logger.Warning(err)
+			logger.Warning("failed to backup:", err)
 		}
 		m.emitSignalJobEnd(jobKindBackup, err)
 
@@ -221,7 +223,7 @@ func (m *Manager) startRestore(envVars []string) error {
 	go func() {
 		err := m.restore(envVars)
 		if err != nil {
-			logger.Warning(err)
+			logger.Warning("failed to restore:", err)
 		}
 		m.emitSignalJobEnd(jobKindRestore, err)
 
@@ -248,11 +250,29 @@ func (m *Manager) StartRestore(sender dbus.Sender) *dbus.Error {
 }
 
 func inhibitShutdownDo(why string, fn func() error) error {
+	bootRo, err := isMountedRo("/boot")
+	if err != nil {
+		return xerrors.Errorf("isMountedRo: %w", bootRo)
+	}
+	if bootRo {
+		err = exec.Command("mount", "/boot", "-o", "rw,remount").Run()
+		if err != nil {
+			return xerrors.Errorf("remount /boot rw: %w", err)
+		}
+		defer func() {
+			// 把 /boot 恢复为只读
+			err := exec.Command("mount", "/boot", "-o", "ro,remount").Run()
+			if err != nil {
+				logger.Warning("failed to remount /boot ro:")
+			}
+		}()
+	}
+
 	fd, iErr := inhibit("shutdown", dbusInterface, why)
 	if iErr != nil {
 		logger.Warning("failed to inhibit:", iErr)
 	}
-	err := fn()
+	err = fn()
 
 	if iErr == nil {
 		err := syscall.Close(int(fd))
