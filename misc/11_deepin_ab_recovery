@@ -132,6 +132,16 @@ case "x$machine" in
 	done ;;
 esac
 
+# disable locale if arch is mips or arm
+case "x$machine" in
+  xmips*)
+    export LC_ALL=C
+    ;;
+  xarm*)
+    export LC_ALL=C
+    ;;
+esac
+
 prepare_boot_cache=
 prepare_root_cache=
 title_correction_code=
