@@ -36,6 +36,7 @@ type Manager struct {
 
 	cfg Config
 
+	//nolint
 	methods *struct {
 		CanBackup    func() `out:"can"`
 		CanRestore   func() `out:"can"`
@@ -43,6 +44,7 @@ type Manager struct {
 		StartRestore func()
 	}
 
+	//nolint
 	signals *struct {
 		JobEnd struct {
 			kind    string
