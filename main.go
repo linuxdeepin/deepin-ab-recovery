@@ -318,7 +318,7 @@ func backup(cfg *Config, envVars []string) error {
 			systemName := osReleaseInfo[osSystemName]
 			majorVersion := osReleaseInfo[osMajorVersion]
 			EditName := osReleaseInfo[osEditionName]
-			osDesc = systemName + " " + majorVersion + "" + EditName
+			osDesc = systemName + " " + majorVersion + " " + EditName
 		}
 	}
 
