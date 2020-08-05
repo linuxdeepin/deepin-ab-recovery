@@ -220,17 +220,10 @@ func backup(cfg *Config, envVars []string) error {
 			osVersion = lsbReleaseInfo[lsbReleaseKeyRelease]
 			osDesc = lsbReleaseInfo[lsbReleaseKeyDesc]
 		} else {
-			osVersion = lsbReleaseInfo[lsbReleaseKeyRelease]
-			osDesc = lsbReleaseInfo[lsbReleaseKeyDesc]
-			osEditName := osReleaseInfo[osEditionName]
-			osProductType := osReleaseInfo[osProductType]
-			parts := strings.Split(osDesc, " ")
-			if len(parts) != 2 {
-				logger.Debug("Split Failed")
-			}
-			key := parts[0]
-			value := parts[1]
-			osDesc = key + " " + osProductType + " " + value + " " + osEditName
+			systemName := osReleaseInfo[osSystemName]
+			majorVersion := osReleaseInfo[osMajorVersion]
+			EditName := osReleaseInfo[osEditionName]
+			osDesc = systemName + " " + majorVersion + "" + EditName
 		}
 	}
 
