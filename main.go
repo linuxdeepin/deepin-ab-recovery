@@ -16,9 +16,9 @@ import (
 
 	"./grubcfg"
 	login1 "github.com/linuxdeepin/go-dbus-factory/org.freedesktop.login1"
+	"github.com/godbus/dbus"
 	"golang.org/x/xerrors"
 	"pkg.deepin.io/dde/api/inhibit_hint"
-	"pkg.deepin.io/lib/dbus1"
 	"pkg.deepin.io/lib/dbusutil"
 	"pkg.deepin.io/lib/log"
 	"pkg.deepin.io/lib/procfs"
