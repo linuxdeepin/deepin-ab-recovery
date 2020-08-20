@@ -18,6 +18,9 @@ install: translate
 test:
 	go test -v ./...
 
+print_gopath:
+	GOPATH="${CURDIR}/${GOPATH_DIR}:${GOPATH}"
+
 clean:
 	rm -rf out
 
