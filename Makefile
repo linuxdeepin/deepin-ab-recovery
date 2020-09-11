@@ -5,7 +5,7 @@ all: build
 
 build:
 	mkdir -p out/bin
-	go build -o out/bin/ab-recovery
+	go build -o out/bin/ab-recovery $(flags)
 
 install: translate
 	install -d ${DESTDIR}${PREFIX}/share/locale
