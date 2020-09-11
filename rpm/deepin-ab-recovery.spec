@@ -42,7 +42,7 @@ deepin AB Recovery
 
 %build
 export GOPATH=/usr/share/gocode
-make flags=-trimpath
+make GO_BUILD_FLAGS=-trimpath
 
 %install
 install -d -p %{buildroot}/usr/lib/deepin-daemon
