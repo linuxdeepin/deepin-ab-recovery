@@ -194,18 +194,6 @@ const (
 	lsbReleaseKeyCodename = "Codename"
 )
 
-const (
-	osSystemNameZHCN  = "SystemName[zh_CN]"
-	osProductType     = "ProductType"
-	osEditionName     = "EditionName"
-	osMinorVersion    = "MinorVersion"
-	osOsBuild         = "OsBuild"
-	osSystemName      = "SystemName"
-	osProductTypeZHCH = "ProductType"
-	osEditionNameZHCH = "EditionName"
-	osMajorVersion    = "MajorVersion"
-)
-
 func runLsbRelease() (map[string]string, error) {
 	out, err := exec.Command("lsb_release", "-a").Output()
 	if err != nil {
@@ -265,28 +253,4 @@ func getBootOptions() (string, error) {
 		return "", err
 	}
 	return string(content), nil
-}
-
-func runOsRelease() (map[string]string, error) {
-	content, err := ioutil.ReadFile("/etc/os-version")
-	if err != nil {
-		return nil, err
-	}
-	result := parseOsReleaseOutput(content)
-	return result, nil
-}
-
-func parseOsReleaseOutput(data []byte) map[string]string {
-	lines := strings.Split(string(data), "\n")
-	result := make(map[string]string)
-	for _, line := range lines {
-		parts := strings.Split(line, "=")
-		if len(parts) != 2 {
-			continue
-		}
-		key := parts[0]
-		value := parts[1]
-		result[key] = value
-	}
-	return result
 }

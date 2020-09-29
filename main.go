@@ -211,20 +211,12 @@ func backup(cfg *Config, envVars []string) error {
 
 	osVersion := "unknown"
 	osDesc := "Uos unknown"
-	osReleaseInfo, oserr := runOsRelease()
 	lsbReleaseInfo, err := runLsbRelease()
 	if err != nil {
 		logger.Warning("failed to run lsb-release:", err)
 	} else {
-		if oserr != nil {
-			osVersion = lsbReleaseInfo[lsbReleaseKeyRelease]
-			osDesc = lsbReleaseInfo[lsbReleaseKeyDesc]
-		} else {
-			osVersion = lsbReleaseInfo[lsbReleaseKeyRelease]
-			osDesc = lsbReleaseInfo[lsbReleaseKeyDesc]
-			osEditName := osReleaseInfo[osEditionName]
-			osDesc = osDesc + " " + osEditName
-		}
+		osVersion = lsbReleaseInfo[lsbReleaseKeyRelease]
+		osDesc = lsbReleaseInfo[lsbReleaseKeyDesc]
 	}
 
 	now := time.Now()
