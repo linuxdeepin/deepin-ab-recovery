@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"./grubcfg"
-	login1 "github.com/linuxdeepin/go-dbus-factory/org.freedesktop.login1"
 	"github.com/godbus/dbus"
+	login1 "github.com/linuxdeepin/go-dbus-factory/org.freedesktop.login1"
 	"golang.org/x/xerrors"
 	"pkg.deepin.io/dde/api/inhibit_hint"
 	"pkg.deepin.io/lib/dbusutil"
@@ -29,13 +29,14 @@ import (
 var logger = log.NewLogger("ab-recovery")
 
 const (
-	configFile            = "/etc/deepin/ab-recovery.json"
-	backupMountPoint      = "/deepin-ab-recovery-backup"
-	abRecoveryGrubCfgFile = "/etc/default/grub.d/11_deepin_ab_recovery.cfg"
-	abRecoveryFile        = "/usr/lib/deepin-daemon/ab-recovery"
-	ddeWelcomeFile        = "/usr/lib/deepin-daemon/dde-welcome"
-	grubLinuxBarFile      = "/etc/grub.d/15_linux_bar"
-	abKernelBackupDir     = "/boot/kernel-backup/"
+	configFile              = "/etc/deepin/ab-recovery.json"
+	backupMountPoint        = "/deepin-ab-recovery-backup"
+	abRecoveryGrubCfgFile   = "/etc/default/grub.d/11_deepin_ab_recovery.cfg"
+	abRecoveryFile          = "/usr/lib/deepin-daemon/ab-recovery"
+	ddeWelcomeFile          = "/usr/lib/deepin-daemon/dde-welcome"
+	grubLinuxBarFile        = "/etc/grub.d/15_linux_bar"
+	abKernelBackupDir       = "/boot/kernel-backup/"
+	backupPartitionMarkFile = ".deepin-ab-recovery-backup"
 )
 
 var globalNoGrubMkconfig bool
@@ -57,6 +58,7 @@ var options struct {
 	bootDir        string
 	grubMenuEn     bool
 	fixBackup      bool
+	printShHideOs  bool
 }
 
 func init() {
@@ -64,13 +66,106 @@ func init() {
 	flag.BoolVar(&options.noGrubMkconfig, "no-grub-mkconfig", false, "")
 	flag.BoolVar(&options.grubMenuEn, "grub-menu-en", false, "grub menu entry use english")
 	flag.BoolVar(&options.fixBackup, "fix-backup", false, "Fix bugs in backup partition")
+	flag.BoolVar(&options.printShHideOs, "print-sh-hide-os", false,
+		"print the shell script to hide the backup OS")
 	flag.StringVar(&options.arch, "arch", "", "")
 	flag.StringVar(&options.grubCfgFile, "grub-cfg", "", "")
 	flag.StringVar(&options.bootDir, "boot", "", "")
 }
 
+// 此函数用于 /etc/default/grub.d/12_deepin_ab_recovery.cfg 脚本
+func printShHideOs() (exitCode int) {
+	logger.RemoveBackendConsole() // 避免输出日志到标准输出
+	setLogEnv(logEnvGrubMkconfig)
+	devices, err := runOsProber()
+	if err != nil {
+		logWarningf("run os-prober error: %v", err)
+		exitCode = 1
+		return
+	}
+	for _, device := range devices {
+		is, err := isBackupDevice(device)
+		if err != nil {
+			logWarningf("isBackupDevice error: %v", err)
+			continue
+		}
+		if !is {
+			continue
+		}
+		uuid, err := getDeviceUuid(device)
+		if err != nil {
+			logWarningf("get device uuid failed: %v", err)
+			exitCode = 2
+			return
+		}
+		fmt.Printf("GRUB_OS_PROBER_SKIP_LIST=\"$GRUB_OS_PROBER_SKIP_LIST %s@%s\"\n", uuid, device)
+		return
+	}
+	return
+}
+
+func isBackupDevice(device string) (bool, error) {
+	dir := "/deepin-ab-recovery-isBackupDevice"
+	umount, err := mountDevice(device, dir)
+	if umount != nil {
+		defer umount()
+	}
+	if err != nil {
+		return false, err
+	}
+
+	_, err = os.Stat(filepath.Join(dir, backupPartitionMarkFile))
+	return err == nil, nil
+}
+
+func mountDevice(device, dir string) (fn func(), err error) {
+	fn = func() {
+		umountDeleteDir(dir)
+	}
+	mounted, err := isMounted(dir)
+	if err != nil {
+		return
+	}
+	if mounted {
+		err = exec.Command("umount", dir).Run()
+		if err != nil {
+			err = xerrors.Errorf("failed to unmount %s: %w", dir, err)
+			return
+		}
+	}
+
+	err = os.Mkdir(dir, 0755)
+	if err != nil && !os.IsExist(err) {
+		return
+	}
+
+	err = exec.Command("mount", device, dir).Run()
+	if err != nil {
+		err = xerrors.Errorf("failed to mount device %q to dir %q: %w",
+			device, dir, err)
+	}
+	return
+}
+
+func umountDeleteDir(dir string) {
+	err := exec.Command("umount", dir).Run()
+	if err != nil {
+		logWarningf("failed to unmount directory %q: %v", dir, err)
+	}
+
+	err = os.Remove(dir)
+	if err != nil {
+		logWarningf("failed to remove backup mount point: %v", err)
+	}
+}
+
 func main() {
 	flag.Parse()
+	if options.printShHideOs {
+		exitCode := printShHideOs()
+		os.Exit(exitCode)
+	}
+
 	err := os.Setenv("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
 	if err != nil {
 		logger.Warning("failed to set env PATH", err)
@@ -252,6 +347,11 @@ func backup(cfg *Config, envVars []string) error {
 	kFiles, err := backupKernel()
 	if err != nil {
 		return xerrors.Errorf("failed to backup kernel: %w", err)
+	}
+
+	err = ioutil.WriteFile(filepath.Join(backupMountPoint, backupPartitionMarkFile), nil, 0644)
+	if err != nil {
+		return xerrors.Errorf("failed to write backup partition mark file: %w", err)
 	}
 
 	// generate grub config
@@ -637,6 +737,11 @@ func restore(cfg *Config, envVars []string) error {
 	err = cfg.save(configFile)
 	if err != nil {
 		return xerrors.Errorf("failed to save config file %q: %w", configFile, err)
+	}
+
+	err = os.Remove(filepath.Join("/", backupPartitionMarkFile))
+	if err != nil && !os.IsNotExist(err) {
+		return xerrors.Errorf("failed to delete backup partition mark file: %w", err)
 	}
 
 	return nil

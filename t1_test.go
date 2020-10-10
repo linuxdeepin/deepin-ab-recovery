@@ -171,3 +171,17 @@ func TestGetPathFromLsblkOutput(t *testing.T) {
 	ret = getPathFromLsblkOutput(lsblkUuidPath1, "")
 	assert.Equal(t, "", ret)
 }
+
+func TestParseOsProberOutput(t *testing.T) {
+	ret := parseOsProberOutput([]byte("/dev/nvme0n1p4:UnionTech OS 20 (20):uos:linux"))
+	assert.Equal(t, []string{"/dev/nvme0n1p4"}, ret)
+
+	ret = parseOsProberOutput([]byte(`/dev/nvme0n1p4:UnionTech OS 20 (20):uos:linux
+/dev/nvme0n1p5:Deepin OS 20 (20):deepin:linux
+/dev/nvme0n1p6:Windows 7:win7:windows
+`))
+	assert.Equal(t, []string{"/dev/nvme0n1p4", "/dev/nvme0n1p5"}, ret)
+
+	ret = parseOsProberOutput(nil)
+	assert.Len(t, ret, 0)
+}

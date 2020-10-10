@@ -8,13 +8,6 @@ export TEXTDOMAINDIR="${datarootdir}/locale"
 
 CLASS="--class gnu-linux --class gnu --class os"
 
-ab_recovery_cfg=/etc/default/grub.d/11_deepin_ab_recovery.cfg
-if [ -f $ab_recovery_cfg ]; then
-    . $ab_recovery_cfg
-else
-    exit 0
-fi
-
 if [ -z "$DEEPIN_AB_RECOVERY_BACKUP_UUID" ]; then
     exit 0
 fi

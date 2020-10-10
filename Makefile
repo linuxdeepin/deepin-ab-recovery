@@ -12,6 +12,8 @@ install: translate
 	cp -rv out/locale/* ${DESTDIR}${PREFIX}/share/locale
 	install -D out/bin/ab-recovery ${DESTDIR}${PREFIX}/lib/deepin-daemon/ab-recovery
 	install -D misc/11_deepin_ab_recovery ${DESTDIR}/etc/grub.d/11_deepin_ab_recovery
+	install -m 0644 -D misc/12_deepin_ab_recovery.cfg \
+		${DESTDIR}/etc/default/grub.d/12_deepin_ab_recovery.cfg
 	install -m 0644 -D misc/com.deepin.ABRecovery.conf ${DESTDIR}${PREFIX}/share/dbus-1/system.d/com.deepin.ABRecovery.conf
 	install -m 0644 -D misc/com.deepin.ABRecovery.service ${DESTDIR}${PREFIX}/share/dbus-1/system-services/com.deepin.ABRecovery.service
 

@@ -59,3 +59,19 @@ Current 字段为正在使用分区的 uuid，Backup 字段为备份分区的 uu
 还原条件：根分区的 uuid 等于配置文件中的 Backup 字段的值。
 
 把备份分区的信息加入 GRUB_OS_PROBER_SKIP_LIST 中，然后执行 grub-mkconfig 命令更新 grub 配置文件。
+
+## 特殊场景分析
+
+### 使用备份还原工具恢复出厂设置
+
+恢复出厂设置会恢复系统的根分区和 /boot 分区，导致重要配置文件 `/etc/default/grub.d/11_deepin_ab_recovery.cfg` 丢失，如果不加以拯救，就会让 `/etc/grub.d/30_os-prober` 脚本输出备份分区中的系统到启动项配置脚本文件 `/boot/grub/grub.cfg` 中，添加**多余**的启动项目。
+
+采用的解决方案为：
+
+增加配置脚本 `/etc/default/grub.d/12_deepin_ab_recovery.cfg` 让它在配置文件 `/etc/default/grub.d/11_deepin_ab_recovery.cfg`  丢失时，调用命令 `ab-recovery -print-sh-hide-os`，这个命令会输出类似的内容：
+```
+GRUB_OS_PROBER_SKIP_LIST="$GRUB_OS_PROBER_SKIP_LIST 8bafe9c6-71f5-4b5c-8923-accb280cc12b@/dev/nvme0n1p4"
+```
+可以让 `30_os-prober` 脚本跳过备份分区。
+
+`ab-recovery` 的 `-print-sh-hide-os` 选项的处理逻辑主要在 printShHideOs 函数中，基本原理是调用 os-prober 命令找到所有安装有我们的 OS 的分区设备，然后判断分区中是否有备份标记文件 `.deepin-ab-recovery-backup`, 如果有则此分区是那个备份分区，就应该过滤掉，就不会让 `30_os-prober` 输出多余启动项目了。

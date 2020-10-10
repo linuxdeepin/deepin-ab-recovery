@@ -15,6 +15,25 @@ import (
 	"pkg.deepin.io/lib/strv"
 )
 
+const (
+	logEnvCommon = iota
+	logEnvGrubMkconfig
+)
+
+var _logEnv = logEnvCommon
+
+func logWarningf(format string, args ...interface{}) {
+	if _logEnv == logEnvGrubMkconfig {
+		_, _ = fmt.Fprintf(os.Stderr, format+"\n", args...)
+	} else {
+		logger.Warningf(format, args...)
+	}
+}
+
+func setLogEnv(logEnv int) {
+	_logEnv = logEnv
+}
+
 func isArchSw() bool {
 	return globalArch == "sw_64"
 }
@@ -105,6 +124,14 @@ func hasDiskDevice(uuid string) bool {
 	}
 	_, err := os.Stat(filepath.Join("/dev/disk/by-uuid", uuid))
 	return err == nil
+}
+
+func getDeviceUuid(device string) (string, error) {
+	out, err := exec.Command("grub-probe", "-t", "fs_uuid", "-d", device).Output()
+	if err != nil {
+		return "", err
+	}
+	return string(bytes.TrimSpace(out)), nil
 }
 
 func getDeviceByUuid(uuid string) (string, error) {
@@ -253,4 +280,31 @@ func getBootOptions() (string, error) {
 		return "", err
 	}
 	return string(content), nil
+}
+
+func parseOsProberOutput(data []byte) []string {
+	lines := bytes.Split(data, []byte{'\n'})
+	var devices []string
+	for _, line := range lines {
+		fields := strings.SplitN(string(line), ":", 4)
+		if len(fields) < 4 {
+			continue
+		}
+		device := fields[0]
+		label := strings.ToLower(fields[2])
+		boot := strings.ToLower(fields[3])
+		if (label == "uos" || label == "deepin") && boot == "linux" {
+			devices = append(devices, device)
+		}
+	}
+	return devices
+}
+
+func runOsProber() ([]string, error) {
+	out, err := exec.Command("os-prober").Output()
+	if err != nil {
+		return nil, err
+	}
+	result := parseOsProberOutput(out)
+	return result, nil
 }
