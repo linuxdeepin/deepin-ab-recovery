@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"flag"
@@ -353,6 +354,11 @@ func backup(cfg *Config, envVars []string) error {
 		return xerrors.Errorf("failed to modify fs tab: %w", err)
 	}
 
+	err = modifyRules(filepath.Join(backupMountPoint, "/etc/udev/rules.d/80-udisks2.rules"), cfg.Current)
+	if err != nil {
+		return xerrors.Errorf("failed to modify rules: %w", err)
+	}
+
 	kFiles, err := backupKernel()
 	if err != nil {
 		return xerrors.Errorf("failed to backup kernel: %w", err)
@@ -369,6 +375,54 @@ func backup(cfg *Config, envVars []string) error {
 		return xerrors.Errorf("failed to write grub cfg: %w", err)
 	}
 
+	return nil
+}
+
+// 系统备份升级后还原，由于备份分区未被隐藏，导致文件管理器显示的系统盘不是真正的系统盘
+// 显示的是备份分区的系统盘,所以在备份时,修改备份分区下的rule文件,将备份分区继续继续隐藏
+func modifyRules(filename, Uuid string) error {
+	in, err := os.Open(filename)
+	if err != nil {
+		logger.Warning(err)
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.OpenFile(filename+".new", os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		logger.Warning(err)
+		return err
+	}
+	defer out.Close()
+
+	var (
+		index   int
+		scanner = bufio.NewScanner(in)
+	)
+
+	var newLine string
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if index == 0 && string(line) == "# hide rootb" {
+			newLine = "# hide ab-recovery backup partition"
+		} else if index == 1 {
+			newLine = fmt.Sprintf("ENV{ID_FS_UUID}==%q, ENV{UDISKS_IGNORE}=\"1\"", Uuid)
+		} else {
+			newLine = string(line)
+		}
+		_, err = out.WriteString(newLine + "\n")
+		if err != nil {
+			logger.Warning(err)
+			return err
+		}
+		index++
+	}
+	err = os.Rename(filename+".new", filename)
+	if err != nil {
+		logger.Warning(err)
+		return err
+	}
 	return nil
 }
 
