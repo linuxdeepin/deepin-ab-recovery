@@ -6,8 +6,8 @@ import (
 	"sync"
 	"syscall"
 
-	"golang.org/x/xerrors"
 	"github.com/godbus/dbus"
+	"golang.org/x/xerrors"
 	"pkg.deepin.io/lib/dbusutil"
 )
 
@@ -88,9 +88,6 @@ func (m *Manager) GetInterfaceName() string {
 }
 
 func (m *Manager) canBackup() (bool, error) {
-	if globalUsePmonBios {
-		return false, nil
-	}
 	if globalNoGrubMkconfig {
 		if isArchMips() {
 			// pass
@@ -118,9 +115,6 @@ func (m *Manager) CanBackup() (bool, *dbus.Error) {
 }
 
 func (m *Manager) canRestore() (bool, error) {
-	if globalUsePmonBios {
-		return false, nil
-	}
 	if globalNoGrubMkconfig {
 		if isArchMips() {
 			// pass

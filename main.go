@@ -42,9 +42,6 @@ const (
 
 var globalNoGrubMkconfig bool
 
-// 不支持固件为 PMON 的龙芯机器，如果 globalUsePmonBios 为 true，则CanBackup() 和 CanRestore() 都返回 false。
-var globalUsePmonBios bool
-
 var globalArch string
 var globalGrubCfgFile = "/boot/grub/grub.cfg"
 var globalBootDir = "/boot"
@@ -177,18 +174,7 @@ func main() {
 		globalArch = options.arch
 	}
 
-	if isArchMips() {
-		// mips64
-
-		bi, err := readBoardInfo()
-		if err != nil {
-			logger.Warning("failed to read board info:", err)
-		} else {
-			if strings.Contains(bi.biosVersion, "PMON") {
-				globalUsePmonBios = true
-			}
-		}
-	} else if isArchSw() {
+	if isArchSw() {
 		globalNoGrubMkconfig = true
 	}
 
@@ -218,7 +204,6 @@ func main() {
 
 	logger.Debug("arch:", globalArch)
 	logger.Debug("noGrubMkConfig:", globalNoGrubMkconfig)
-	logger.Debug("usePmonBios:", globalUsePmonBios)
 	logger.Debug("bootDir:", globalBootDir)
 	logger.Debug("grubCfgFile:", globalGrubCfgFile)
 	logger.Debug("grubMenuEn:", globalGrubMenuEn)
