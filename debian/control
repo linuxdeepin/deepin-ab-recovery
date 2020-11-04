@@ -1,17 +1,25 @@
 Source: deepin-ab-recovery
 Section: admin
-Priority: extra
+Priority: optional
 Maintainer: Deepin Packages Builder <packages@deepin.com>
-Build-Depends: debhelper (>= 9), golang-go,
- golang-dlib-dev, golang-github-linuxdeepin-go-dbus-factory-dev, dde-api-dev,
- golang-golang-x-xerrors-dev, golang-github-stretchr-testify-dev
-Standards-Version: 3.9.5
-Homepage: http://github.com/linuxdeepin
+Build-Depends:
+ dde-api-dev,
+ debhelper-compat (= 11),
+ golang-dlib-dev,
+ golang-github-linuxdeepin-go-dbus-factory-dev,
+ golang-github-stretchr-testify-dev,
+ golang-go,
+ golang-golang-x-xerrors-dev,
+Standards-Version: 4.1.3
+Homepage: http://github.com/linuxdeepin/deepin-ab-recovery
 
 Package: deepin-ab-recovery
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, rsync, grub-common, mount
-Recommends:
-Conflicts:
-Breaks:
-Description: deepin AB Recovery
+Depends:
+ grub-common,
+ mount,
+ rsync,
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: A/B backup and restore service
+ deepin A/B backup and restore service
