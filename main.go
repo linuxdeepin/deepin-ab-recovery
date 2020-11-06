@@ -710,15 +710,6 @@ func fixBackup() error {
 		}
 	}
 
-	// 删除备份分区/etc/grub.d/15_linux_bar
-	fileInfoList, err := ioutil.ReadDir("/boot/deepin")
-	if err != nil || len(fileInfoList) == 0 {
-		err = os.Remove(filepath.Join(backupMountPoint, grubLinuxBarFile))
-		if err != nil && !os.IsNotExist(err) {
-			logger.Warningf("remove %s failed:%v", filepath.Join(backupMountPoint, grubLinuxBarFile), err)
-		}
-	}
-
 	return nil
 }
 
