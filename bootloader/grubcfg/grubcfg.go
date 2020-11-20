@@ -5,9 +5,9 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"regexp"
 	"strings"
 
+	bootloader ".."
 	"golang.org/x/xerrors"
 )
 
@@ -75,8 +75,6 @@ func (cfg *GrubCfg) RemoveRecoveryMenuEntries() {
 	cfg.items = items
 }
 
-var regRootUUID = regexp.MustCompile(`root=UUID=[0-9a-fA-F\-]+`)
-
 func (cfg *GrubCfg) ReplaceRootUuid(uuid string) error {
 	for _, item := range cfg.items {
 		me, ok := item.(*MenuEntry)
@@ -87,8 +85,8 @@ func (cfg *GrubCfg) ReplaceRootUuid(uuid string) error {
 
 			for idx, item := range me.items {
 				line := strings.TrimSpace(item)
-				if strings.HasPrefix(line, "linux") && regRootUUID.MatchString(line) {
-					me.items[idx] = regRootUUID.ReplaceAllString(item, "root=UUID="+uuid)
+				if strings.HasPrefix(line, "linux") && bootloader.RegRootUUID.MatchString(line) {
+					me.items[idx] = bootloader.RegRootUUID.ReplaceAllString(item, "root=UUID="+uuid)
 					return nil
 				}
 			}

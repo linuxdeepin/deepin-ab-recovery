@@ -15,7 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"./grubcfg"
+	"./bootloader/grubcfg"
+	"./bootloader/pmoncfg"
 	"github.com/godbus/dbus"
 	login1 "github.com/linuxdeepin/go-dbus-factory/org.freedesktop.login1"
 	"golang.org/x/xerrors"
@@ -41,9 +42,11 @@ const (
 )
 
 var globalNoGrubMkconfig bool
+var globalUsePmonBios bool
 
 var globalArch string
 var globalGrubCfgFile = "/boot/grub/grub.cfg"
+var globalPmonCfgFile = "/boot/boot/boot.cfg"
 var globalBootDir = "/boot"
 var globalKernelBackupDir string
 var globalGrubMenuEn bool
@@ -174,7 +177,18 @@ func main() {
 		globalArch = options.arch
 	}
 
-	if isArchSw() {
+	if isArchMips() {
+		// mips64
+
+		bi, err := readBoardInfo()
+		if err != nil {
+			logger.Warning("failed to read board info:", err)
+		} else {
+			if strings.Contains(bi.biosVersion, "PMON") {
+				globalUsePmonBios = true
+			}
+		}
+	} else if isArchSw() {
 		globalNoGrubMkconfig = true
 	}
 
@@ -204,8 +218,10 @@ func main() {
 
 	logger.Debug("arch:", globalArch)
 	logger.Debug("noGrubMkConfig:", globalNoGrubMkconfig)
+	logger.Debug("usePmonBios:", globalUsePmonBios)
 	logger.Debug("bootDir:", globalBootDir)
 	logger.Debug("grubCfgFile:", globalGrubCfgFile)
+	logger.Debug("pmonCfgFile:", globalPmonCfgFile)
 	logger.Debug("grubMenuEn:", globalGrubMenuEn)
 
 	service, err := dbusutil.NewSystemService()
@@ -354,10 +370,10 @@ func backup(cfg *Config, envVars []string) error {
 		return xerrors.Errorf("failed to write backup partition mark file: %w", err)
 	}
 
-	// generate grub config
-	err = writeGrubCfgBackup(backupUuid, backupDevice, osDesc, kFiles, now, envVars)
+	// generate bootloader config
+	err = writeBootloaderCfgBackup(backupUuid, backupDevice, osDesc, kFiles, now, envVars)
 	if err != nil {
-		return xerrors.Errorf("failed to write grub cfg: %w", err)
+		return xerrors.Errorf("failed to write bootloader cfg: %w", err)
 	}
 
 	return nil
@@ -758,7 +774,7 @@ func restore(cfg *Config, envVars []string) error {
 		logger.Warning("Remove dir failed:", globalKernelBackupDir, err)
 	}
 
-	err = writeGrubCfgRestore(cfg.Current, currentDevice, cfg.Backup, envVars)
+	err = writeBootloaderCfgRestore(cfg.Current, currentDevice, cfg.Backup, envVars)
 	if err != nil {
 		return xerrors.Errorf("failed to write grub cfg: %w", err)
 	}
@@ -786,7 +802,11 @@ func restore(cfg *Config, envVars []string) error {
 	return nil
 }
 
-func writeGrubCfgRestore(currentUuid, currentDevice, backupUuid string, envVars []string) error {
+func writeBootloaderCfgRestore(currentUuid, currentDevice, backupUuid string, envVars []string) error {
+	if globalUsePmonBios {
+		return writePmonCfgRestore(backupUuid)
+	}
+
 	if globalNoGrubMkconfig {
 		if isArchMips() {
 			return writeGrubCfgRestoreMips(backupUuid)
@@ -839,10 +859,33 @@ func writeGrubCfgRestoreMips(uuid string) error {
 	return nil
 }
 
-func writeGrubCfgBackup(backupUuid, backupDevice, osDesc string,
+func writePmonCfgRestore(uuid string) error {
+	cfg, err := pmoncfg.ParsePmonCfgFile(globalPmonCfgFile)
+	if err != nil {
+		return xerrors.Errorf("failed to parse grub cfg file: %w", err)
+	}
+
+	cfg.RemoveRecoveryMenuEntries()
+	err = cfg.ReplaceRootUuid(uuid)
+	if err != nil {
+		return xerrors.Errorf("failed to replace root uuid: %w", err)
+	}
+
+	err = cfg.Save(globalPmonCfgFile)
+	if err != nil {
+		return xerrors.Errorf("failed to save grub cfg file: %w", err)
+	}
+	return nil
+}
+
+func writeBootloaderCfgBackup(backupUuid, backupDevice, osDesc string,
 	kFiles *kernelFiles, backupTime time.Time, envVars []string) error {
 	if globalGrubMenuEn {
 		envVars = []string{"LANG=en_US.UTF-8", "LANGUAGE=en_US"}
+	}
+
+	if globalUsePmonBios {
+		return writePmonCfgBackup(backupUuid, osDesc, kFiles, backupTime)
 	}
 
 	if globalNoGrubMkconfig {
@@ -928,6 +971,28 @@ func writeGrubCfgBackupMips(backupUuid string, osDesc string, kFiles *kernelFile
 	if err != nil {
 		return xerrors.Errorf("failed to save grub cfg file: %w", err)
 	}
+	return nil
+}
+
+func writePmonCfgBackup(backupUuid string, osDesc string, kFiles *kernelFiles, backupTime time.Time) error {
+	cfg, err := pmoncfg.ParsePmonCfgFile(globalPmonCfgFile)
+	if err != nil {
+		return err
+	}
+
+	cfg.RemoveRecoveryMenuEntries()
+
+	menuText := getRollbackMenuTextForceEn(osDesc, backupTime)
+	dir := strings.TrimPrefix(globalKernelBackupDir, globalBootDir)
+	linux := filepath.Join(dir, filepath.Base(kFiles.linux))
+	initrd := filepath.Join(dir, filepath.Base(kFiles.initrd))
+	cfg.AddRecoveryMenuEntry(menuText, backupUuid, linux, initrd)
+
+	err = cfg.Save(globalPmonCfgFile)
+	if err != nil {
+		return xerrors.Errorf("failed to save pmon cfg file: %w", err)
+	}
+
 	return nil
 }
 
