@@ -20,6 +20,9 @@ install: translate
 test:
 	go test -v ./...
 
+test-coverage:
+	env GOPATH="${CURDIR}/${GOBUILD_DIR}:${GOPATH}" go test -cover -v ./... | awk '$$1 ~ "(ok|\\?)" {print $$2","$$5}' | sed "s:${CURDIR}::g" | sed 's/files\]/0\.0%/g' > coverage.csv
+
 print_gopath:
 	GOPATH="${CURDIR}/${GOPATH_DIR}:${GOPATH}"
 
