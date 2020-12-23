@@ -173,7 +173,7 @@ fi
 dtbo_dirname=`dirname $dirname`
 rel_dirname=`make_system_path_relative_to_its_root $dirname`
 dtbo_rel_dirname=`make_system_path_relative_to_its_root $dtbo_dirname`
-backup_time=$(date +%c -d @$DEEPIN_AB_RECOVERY_BACKUP_TIME)
+backup_time=$(date '+%Y/%-m/%-d %T' -d @$DEEPIN_AB_RECOVERY_BACKUP_TIME)
 menu_entry=$(printf "$(gettext -d deepin-ab-recovery 'Roll back to %s (%s)')" "$DEEPIN_AB_RECOVERY_OS_DESC" "$backup_time")
 
 if test -e "$dtbo_dirname/dtbo.img"; then

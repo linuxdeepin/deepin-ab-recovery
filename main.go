@@ -1089,8 +1089,7 @@ func getRollBackMenuText(osDesc string, backupTime time.Time, envVars []string) 
 	getTextOut = bytes.TrimSpace(getTextOut)
 
 	backupTs := strconv.FormatInt(backupTime.Unix(), 10)
-	cmd = exec.Command("date", "+%c", "-d", "@"+backupTs)
-	cmd.Env = append(cmd.Env, envVars...)
+	cmd = exec.Command("date", "+%Y/%-m/%-d %T", "-d", "@"+backupTs)
 	dateOut, err := cmd.Output()
 	if err != nil {
 		return "", xerrors.Errorf("run date error: %w", err)
