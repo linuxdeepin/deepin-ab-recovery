@@ -25,6 +25,8 @@ var msgRollBack = Tr("Roll back to %s (%s)")
 // ^ 相同的源字符串也定义在文件 misc/11_deepin_ab_recovery 中
 
 //go:generate dbusutil-gen -type Manager manager.go
+//go:generate dbusutil-gen em -type Manager
+
 type Manager struct {
 	service       *dbusutil.Service
 	PropsMu       sync.RWMutex
@@ -35,14 +37,6 @@ type Manager struct {
 	BackupTime    int64
 
 	cfg Config
-
-	//nolint
-	methods *struct {
-		CanBackup    func() `out:"can"`
-		CanRestore   func() `out:"can"`
-		StartBackup  func()
-		StartRestore func()
-	}
 
 	//nolint
 	signals *struct {
@@ -109,7 +103,7 @@ func (m *Manager) canBackup() (bool, error) {
 	return rootUuid == m.cfg.Current, nil
 }
 
-func (m *Manager) CanBackup() (bool, *dbus.Error) {
+func (m *Manager) CanBackup() (can bool, busErr *dbus.Error) {
 	can, err := m.canBackup()
 	return can, dbusutil.ToError(err)
 }
@@ -135,7 +129,7 @@ func (m *Manager) canRestore() (bool, error) {
 	return rootUuid == m.cfg.Backup, nil
 }
 
-func (m *Manager) CanRestore() (bool, *dbus.Error) {
+func (m *Manager) CanRestore() (can bool, busErr *dbus.Error) {
 	can, err := m.canRestore()
 	return can, dbusutil.ToError(err)
 }
