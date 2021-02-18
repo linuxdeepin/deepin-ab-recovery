@@ -5,9 +5,11 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const boardInfo1 = `BIOS Information
@@ -184,4 +186,129 @@ func TestParseOsProberOutput(t *testing.T) {
 
 	ret = parseOsProberOutput(nil)
 	assert.Len(t, ret, 0)
+}
+
+func TestIsSymlink(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "isSymlinkTest")
+	require.Nil(t, err)
+	defer func() {
+		err := os.RemoveAll(tempDir)
+		if err != nil {
+			t.Logf("remove temp dir failed: %v", err)
+		}
+	}()
+
+	f1 := filepath.Join(tempDir, "f1")
+	err = ioutil.WriteFile(f1, []byte("hello"), 0644)
+	assert.Nil(t, err)
+
+	f2 := filepath.Join(tempDir, "f2")
+	err = os.Symlink(f1, f2)
+	assert.Nil(t, err)
+
+	isSym, err := isSymlink(f1)
+	assert.Nil(t, err)
+	assert.False(t, isSym)
+
+	isSym, err = isSymlink(f2)
+	assert.Nil(t, err)
+	assert.True(t, isSym)
+}
+
+var _testDataExtraDir = map[string]string{
+	"abc":     "ABC",
+	"dir/def": "DEF",
+}
+
+func prepareDir(baseDir string, data map[string]string) error {
+	for p, content := range data {
+		filename := filepath.Join(baseDir, p)
+		err := os.MkdirAll(filepath.Dir(filename), 0755)
+		if err != nil {
+			return err
+		}
+		err = ioutil.WriteFile(filename, []byte(content), 0644)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func TestBackupExtraDir(t *testing.T) {
+	_, err := exec.LookPath("cp")
+	if err != nil {
+		// backupExtraDir 依赖 cp 命令
+		t.Skip(err)
+	}
+
+	tempDir, err := ioutil.TempDir("", "backupExtraDirTest")
+	require.Nil(t, err)
+	defer func() {
+		err := os.RemoveAll(tempDir)
+		if err != nil {
+			t.Logf("remove temp dir failed: %v", err)
+		}
+	}()
+
+	err = prepareDir(filepath.Join(tempDir, "/var/lib/xyz"), _testDataExtraDir)
+	require.Nil(t, err)
+
+	originDir := filepath.Join(tempDir, "/var/lib/xyz")
+	hospiceDir := filepath.Join(tempDir, "hospice")
+	err = backupExtraDir(originDir, "", hospiceDir)
+	assert.Nil(t, err)
+
+	// 执行两次
+	err = backupExtraDir(originDir, "", hospiceDir)
+	assert.Nil(t, err)
+
+	abc, err := getFileContent(filepath.Join(hospiceDir, "xyz/abc"))
+	assert.Nil(t, err)
+	assert.Equal(t, "ABC", abc)
+
+	def, err := getFileContent(filepath.Join(hospiceDir, "xyz/dir/def"))
+	assert.Nil(t, err)
+	assert.Equal(t, "DEF", def)
+}
+
+func TestRestoreExtraDir(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "restoreExtraDirTest")
+	require.Nil(t, err)
+	defer func() {
+		err := os.RemoveAll(tempDir)
+		if err != nil {
+			t.Logf("remove temp dir failed: %v", err)
+		}
+	}()
+
+	originDir := filepath.Join(tempDir, "/var/lib/xyz")
+	err = prepareDir(originDir, _testDataExtraDir)
+	require.Nil(t, err)
+
+	hospiceDir := filepath.Join(tempDir, "hospice")
+	err = prepareDir(filepath.Join(hospiceDir, "xyz"), _testDataExtraDir)
+	require.Nil(t, err)
+
+	err = restoreExtraDir(originDir, "", hospiceDir)
+	assert.Nil(t, err)
+
+	// 执行两次
+	err = restoreExtraDir(originDir, "", hospiceDir)
+	assert.Nil(t, err)
+
+	abc, err := getFileContent(filepath.Join(originDir, "abc"))
+	assert.Nil(t, err)
+	assert.Equal(t, "ABC", abc)
+
+	def, err := getFileContent(filepath.Join(originDir, "dir/def"))
+	assert.Nil(t, err)
+	assert.Equal(t, "DEF", def)
+
+	// 测试软链接是否生效
+	err = ioutil.WriteFile(filepath.Join(hospiceDir, "xyz/abc"), []byte("ABC123"), 0644)
+	assert.Nil(t, err)
+	abc, err = getFileContent(filepath.Join(originDir, "abc"))
+	assert.Nil(t, err)
+	assert.Equal(t, "ABC123", abc)
 }

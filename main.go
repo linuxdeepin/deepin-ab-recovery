@@ -36,9 +36,9 @@ const (
 	abRecoveryGrubCfgFile   = "/etc/default/grub.d/11_deepin_ab_recovery.cfg"
 	abRecoveryFile          = "/usr/lib/deepin-daemon/ab-recovery"
 	ddeWelcomeFile          = "/usr/lib/deepin-daemon/dde-welcome"
-	grubLinuxBarFile        = "/etc/grub.d/15_linux_bar"
 	abKernelBackupDir       = "/boot/kernel-backup/"
 	backupPartitionMarkFile = ".deepin-ab-recovery-backup"
+	defaultHospiceDir       = "/usr/share/deepin-ab-recovery/hospice/"
 )
 
 var globalNoGrubMkconfig bool
@@ -60,6 +60,15 @@ var options struct {
 	grubMenuEn     bool
 	fixBackup      bool
 	printShHideOs  bool
+}
+
+var _extraDirs = []struct {
+	originDir       string
+	hospiceChildDir string
+}{
+	{
+		originDir: "/var/lib/systemd",
+	},
 }
 
 func init() {
@@ -333,6 +342,8 @@ func backup(cfg *Config, envVars []string) error {
 		return xerrors.Errorf("failed to save config file %q: %w", configFile, err)
 	}
 
+	backupAllExtraDirs()
+
 	err = runRsync(tmpExcludeFile)
 	if err != nil {
 		return xerrors.Errorf("run rsync err: %w", err)
@@ -376,6 +387,49 @@ func backup(cfg *Config, envVars []string) error {
 		return xerrors.Errorf("failed to write bootloader cfg: %w", err)
 	}
 
+	return nil
+}
+
+// 备份所有不在根分区的额外文件夹
+func backupAllExtraDirs() {
+	for _, item := range _extraDirs {
+		err := backupExtraDir(item.originDir, item.hospiceChildDir, defaultHospiceDir)
+		if err != nil {
+			logWarningf("backup extra dir %q failed: %v", item.originDir, err)
+		}
+	}
+}
+
+// 备份不在根分区的额外文件夹，比如实际上在 /data 分区的 /var/lib/systemd 文件夹。
+func backupExtraDir(originDir, hospiceChildDir, hospiceDir string) error {
+	if hospiceChildDir == "" {
+		hospiceChildDir = filepath.Base(originDir)
+		if hospiceChildDir == "" {
+			return errors.New("hospiceChildDir is empty")
+		}
+	}
+	isSym, err := isSymlink(originDir)
+	if err != nil {
+		return xerrors.Errorf("isSymlink %q failed: %w", originDir, err)
+	}
+	if isSym {
+		return nil
+	}
+	err = os.MkdirAll(hospiceDir, 0755)
+	if err != nil {
+		return xerrors.Errorf("make hospice dir failed: %w", err)
+	}
+	hDir := filepath.Join(hospiceDir, hospiceChildDir)
+	// 先删除一遍, 确保 hDir 不存在。
+	err = os.RemoveAll(hDir)
+	if err != nil {
+		return xerrors.Errorf("remove dir failed: %w", err)
+	}
+
+	err = exec.Command("cp", "-a", originDir, hDir).Run()
+	if err != nil {
+		return xerrors.Errorf("run cp command failed: %w", err)
+	}
 	return nil
 }
 
@@ -779,6 +833,8 @@ func restore(cfg *Config, envVars []string) error {
 		return xerrors.Errorf("failed to write grub cfg: %w", err)
 	}
 
+	restoreAllExtraDirs()
+
 	// delete cache archive files
 	err = exec.Command("/usr/bin/lastore-apt-clean", "-force-delete").Run()
 	if err != nil {
@@ -799,6 +855,55 @@ func restore(cfg *Config, envVars []string) error {
 		return xerrors.Errorf("failed to delete backup partition mark file: %w", err)
 	}
 
+	return nil
+}
+
+func restoreAllExtraDirs() {
+	for _, item := range _extraDirs {
+		err := restoreExtraDir(item.originDir, item.hospiceChildDir, defaultHospiceDir)
+		if err != nil {
+			logWarningf("restore extra dir %q failed: %v", item.originDir, err)
+		}
+	}
+}
+
+// 回退不在根分区的额外文件夹，实际上是通过创建软链接完成的。
+// 如果已经是软链接了，则不需要处理。
+func restoreExtraDir(originDir, hospiceChildDir, hospiceDir string) error {
+	if hospiceChildDir == "" {
+		hospiceChildDir = filepath.Base(originDir)
+		if hospiceChildDir == "" {
+			return errors.New("hospiceChildDir is empty")
+		}
+	}
+	isSym, err := isSymlink(originDir)
+	if err != nil {
+		return xerrors.Errorf("isSymlink %q failed: %w", originDir, err)
+	}
+
+	if isSym {
+		return nil
+	}
+
+	// 检查 hDir 文件夹是否存在，它必须存在。
+	hDir := filepath.Join(hospiceDir, hospiceChildDir)
+	hDirInfo, err := os.Stat(hDir)
+	if err != nil {
+		return xerrors.Errorf("stat hDir failed: %w", err)
+	}
+	if !hDirInfo.IsDir() {
+		return errors.New("hDir is not a directory")
+	}
+
+	err = os.RemoveAll(originDir)
+	if err != nil {
+		return xerrors.Errorf("remove origin dir failed: %w", err)
+	}
+
+	err = os.Symlink(hDir, originDir)
+	if err != nil {
+		return xerrors.Errorf("create symlink for %q failed: %w", originDir, err)
+	}
 	return nil
 }
 

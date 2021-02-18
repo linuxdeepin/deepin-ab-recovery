@@ -343,3 +343,23 @@ func parseOsReleaseOutput(data []byte) map[string]string {
 	}
 	return result
 }
+
+// 判断文件 filename 是否是符号链接
+func isSymlink(filename string) (bool, error) {
+	fileInfo, err := os.Lstat(filename)
+	if err != nil {
+		return false, err
+	}
+	if fileInfo.Mode()&os.ModeSymlink != 0 {
+		return true, nil
+	}
+	return false, nil
+}
+
+func getFileContent(filename string) (string, error) {
+	content, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return "", err
+	}
+	return string(content), nil
+}
