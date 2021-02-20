@@ -4,17 +4,17 @@
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
 # Translators:
-# byStarTW (pan93412) <pan93412@gmail.com>, 2020
-# Cindy0514, 2020
+# byStarTW (pan93412) <pan93412@gmail.com>, 2021
+# Cindy0514, 2021
 # 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-10-11 16:03+0800\n"
-"PO-Revision-Date: 2020-11-30 09:38+0000\n"
-"Last-Translator: Cindy0514, 2020\n"
+"POT-Creation-Date: 2021-02-20 11:17+0800\n"
+"PO-Revision-Date: 2021-02-20 03:18+0000\n"
+"Last-Translator: Cindy0514, 2021\n"
 "Language-Team: Chinese (Taiwan) (https://www.transifex.com/linuxdeepin/teams/3617/zh_TW/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -22,19 +22,19 @@ msgstr ""
 "Language: zh_TW\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: main.go:80
+#: main.go:240
 msgid "Control Center"
 msgstr "控制中心"
 
-#: manager.go:21
+#: manager.go:23
 #, c-format
 msgid "Roll back to %s (%s)"
 msgstr "回退到 %s（%s）"
 
-#: manager.go:240
+#: manager.go:283
 msgid "Backing up the system"
 msgstr "正在備份系統"
 
-#: manager.go:246
+#: manager.go:289
 msgid "Restoring the system"
 msgstr "正在還原系統"

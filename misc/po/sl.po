@@ -3,33 +3,38 @@
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# RokX, 2021
+# Arnold Marko <arnold.marko@gmail.com>, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-02-20 11:17+0800\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-02-20 03:18+0000\n"
+"Last-Translator: Arnold Marko <arnold.marko@gmail.com>, 2021\n"
+"Language-Team: Slovenian (https://www.transifex.com/linuxdeepin/teams/3617/sl/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Language: \n"
+"Language: sl\n"
+"Plural-Forms: nplurals=4; plural=(n%100==1 ? 0 : n%100==2 ? 1 : n%100==3 || n%100==4 ? 2 : 3);\n"
 
 #: main.go:240
 msgid "Control Center"
-msgstr "Control Center"
+msgstr "Nadzorni center"
 
 #: manager.go:23
 #, c-format
 msgid "Roll back to %s (%s)"
-msgstr "Roll back to %s (%s)"
+msgstr "Povrni na %s (%s)"
 
 #: manager.go:283
 msgid "Backing up the system"
-msgstr "Backing up the system"
+msgstr "Varnostno kopiranje sistema"
 
 #: manager.go:289
 msgid "Restoring the system"
-msgstr "Restoring the system"
+msgstr "Obnovitev sistema"
