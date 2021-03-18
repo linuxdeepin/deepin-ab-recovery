@@ -3,7 +3,7 @@
 %bcond_with check
 
 Name:           deepin-ab-recovery
-Version:        0.0.5
+Version:        1.2.3
 Release:        1
 Summary:        deepin AB Recovery
 License:        GPLv3+
@@ -42,7 +42,7 @@ deepin AB Recovery
 
 %build
 export GOPATH=/usr/share/gocode
-make GO_BUILD_FLAGS=-trimpath
+make flags=-trimpath
 
 %install
 install -d -p %{buildroot}/usr/lib/deepin-daemon
@@ -54,7 +54,7 @@ echo "/usr/lib/deepin-daemon/ab-recovery" >> devel.file-list
 %license LICENSE
 
 %changelog
-* Tue May 28 2019 Robin Lee <cheeselee@fedoraproject.org> - 3.17.0-2
-- Fix a security issue
+* Thu Mar 11 2021 uoser <uoser@uniontech.com> - 1.2.3-1
+- Update to 1.2.3
 
 
