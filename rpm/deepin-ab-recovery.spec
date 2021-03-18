@@ -3,11 +3,11 @@
 %bcond_with check
 
 Name:           deepin-ab-recovery
-Version:        1.2.3
+Version:        1.2.4
 Release:        1
 Summary:        deepin AB Recovery
 License:        GPLv3+
-Source0:        %{name}_%{version}.orig.tar.xz
+Source0:        %{name}-%{version}.orig.tar.xz
 
 BuildRequires:  compiler(go-compiler)
 BuildRequires:  pkgconfig(alsa)
@@ -54,7 +54,7 @@ echo "/usr/lib/deepin-daemon/ab-recovery" >> devel.file-list
 %license LICENSE
 
 %changelog
-* Thu Mar 11 2021 uoser <uoser@uniontech.com> - 1.2.3-1
-- Update to 1.2.3
+* Thu Mar 11 2021 uoser <uoser@uniontech.com> - 1.2.4-1
+- Update to 1.2.4
 
 
