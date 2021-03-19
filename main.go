@@ -69,9 +69,6 @@ var _extraDirs = []struct {
 	{
 		originDir: "/var/lib/systemd",
 	},
-	{
-		originDir: "/var/lib/lastore",
-	},
 }
 
 func init() {
