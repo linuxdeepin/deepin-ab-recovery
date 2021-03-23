@@ -3,7 +3,7 @@
 %bcond_with check
 
 Name:           deepin-ab-recovery
-Version:        1.2.4
+Version:        1.2.6
 Release:        1
 Summary:        deepin AB Recovery
 License:        GPLv3+
@@ -31,6 +31,10 @@ BuildRequires:  pkgconfig(gudev-1.0)
 BuildRequires:  pkgconfig(sqlite3)
 BuildRequires:  deepin-gettext-tools
 BuildRequires:  gocode
+BuildRequires:  deepin-gir-generator
+BuildRequires:  golang-github-linuxdeepin-go-dbus-factory-devel
+BuildRequires:  go-lib-devel
+BuildRequires:  dde-api-devel
 
 %define debug_package %{nil}
 
@@ -54,7 +58,7 @@ echo "/usr/lib/deepin-daemon/ab-recovery" >> devel.file-list
 %license LICENSE
 
 %changelog
-* Thu Mar 11 2021 uoser <uoser@uniontech.com> - 1.2.4-1
-- Update to 1.2.4
+* Thu Mar 23 2021 uoser <uoser@uniontech.com> - 1.2.6-1
+- Update to 1.2.6
 
 
