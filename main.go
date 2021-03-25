@@ -365,10 +365,19 @@ func backup(cfg *Config, envVars []string) error {
 	if err != nil {
 		return xerrors.Errorf("failed to modify fs tab: %w", err)
 	}
-
-	err = modifyRules(filepath.Join(backupMountPoint, "/etc/udev/rules.d/80-udisks2.rules"), cfg.Current)
-	if err != nil {
-		return xerrors.Errorf("failed to modify rules: %w", err)
+	var rulesPaths = []string{
+		"/etc/udev/rules.d/80-udisks2.rules",
+		"/etc/udev/rules.d/80-udisks-installer.rules",
+	}
+	for _, rulesPath := range rulesPaths {
+		_, err := os.Stat(rulesPath)
+		if err == nil {
+			err = modifyRules(filepath.Join(backupMountPoint, rulesPath), cfg.Current)
+			if err != nil {
+				return xerrors.Errorf("failed to modify rules: %w", err)
+			}
+			break
+		}
 	}
 
 	kFiles, err := backupKernel()
