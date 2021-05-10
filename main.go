@@ -301,7 +301,7 @@ func backup(cfg *Config, envVars []string) error {
 	}()
 
 	skipDirs := []string{
-		"/media", "/tmp",
+		"/media", "/tmp", "/proc", "/sys", "/dev", "/run",
 	}
 
 	tmpExcludeFile, err := writeExcludeFile(append(skipDirs, backupMountPoint))
@@ -501,7 +501,7 @@ func runRsync(excludeFile string) error {
 	if logger.GetLogLevel() == log.LevelDebug {
 		rsyncArgs = append(rsyncArgs, "-v")
 	}
-	rsyncArgs = append(rsyncArgs, "-x", "-a", "--delete-after",
+	rsyncArgs = append(rsyncArgs, "-X", "-x", "-a", "--delete-after",
 		"--exclude-from="+excludeFile,
 		"/", backupMountPoint+"/")
 
