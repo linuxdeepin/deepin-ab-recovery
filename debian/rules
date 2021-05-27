@@ -1,6 +1,7 @@
 #!/usr/bin/make -f
 # -*- makefile -*-
 export GOPATH := /usr/share/gocode
+export GOCACHE := /tmp/gocache
 
 %:
 	dh $@ 
