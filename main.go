@@ -1,7 +1,27 @@
+/*
+ *  Copyright (C) 2019 ~ 2021 Uniontech Software Technology Co.,Ltd
+ *
+ * Author:
+ *
+ * Maintainer:
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
 	"flag"
@@ -365,19 +385,48 @@ func backup(cfg *Config, envVars []string) error {
 	if err != nil {
 		return xerrors.Errorf("failed to modify fs tab: %w", err)
 	}
+
 	var rulesPaths = []string{
 		"/etc/udev/rules.d/80-udisks2.rules",
 		"/etc/udev/rules.d/80-udisks-installer.rules",
 	}
+	foundRules := false
+
+	rootDisk, err := getPathDisk("/")
+	if err != nil {
+		return xerrors.Errorf("failed to get root disk: %w", err)
+	}
+
+	labelUuidMap, err := getLabelUuidMap(rootDisk)
+	if err != nil {
+		return xerrors.Errorf("failed to get label uuid map: %w", err)
+	}
+
 	for _, rulesPath := range rulesPaths {
-		_, err := os.Stat(rulesPath)
+		_, err = os.Stat(rulesPath)
 		if err == nil {
-			err = modifyRules(filepath.Join(backupMountPoint, rulesPath), cfg.Current)
+			currentDevice, err := getDeviceByUuid(cfg.Current)
+			if err != nil {
+				return xerrors.Errorf("failed to get current device by uuid: %w", err)
+			}
+
+			currentDeviceLabel, err := getDeviceLabel(currentDevice)
+			if err != nil {
+				return xerrors.Errorf("failed to get the label of current device: %w", err)
+			}
+
+			err = modifyRules(filepath.Join(backupMountPoint, rulesPath), labelUuidMap, cfg.Current, backupUuid,
+				currentDeviceLabel)
 			if err != nil {
 				return xerrors.Errorf("failed to modify rules: %w", err)
 			}
+			foundRules = true
 			break
 		}
+	}
+
+	if !foundRules {
+		logger.Warning("not found 80-udisks-installer.rules or 80-udisks2.rules")
 	}
 
 	kFiles, err := backupKernel()
@@ -438,54 +487,6 @@ func backupExtraDir(originDir, hospiceChildDir, hospiceDir string) error {
 	err = exec.Command("cp", "-a", originDir, hDir).Run()
 	if err != nil {
 		return xerrors.Errorf("run cp command failed: %w", err)
-	}
-	return nil
-}
-
-// 系统备份升级后还原，由于备份分区未被隐藏，导致文件管理器显示的系统盘不是真正的系统盘
-// 显示的是备份分区的系统盘,所以在备份时,修改备份分区下的rule文件,将备份分区继续继续隐藏
-func modifyRules(filename, Uuid string) error {
-	in, err := os.Open(filename)
-	if err != nil {
-		logger.Warning(err)
-		return err
-	}
-	defer in.Close()
-
-	out, err := os.OpenFile(filename+".new", os.O_RDWR|os.O_CREATE, 0644)
-	if err != nil {
-		logger.Warning(err)
-		return err
-	}
-	defer out.Close()
-
-	var (
-		index   int
-		scanner = bufio.NewScanner(in)
-	)
-
-	var newLine string
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		if index == 0 && string(line) == "# hide rootb" {
-			newLine = "# hide ab-recovery backup partition"
-		} else if index == 1 {
-			newLine = fmt.Sprintf("ENV{ID_FS_UUID}==%q, ENV{UDISKS_IGNORE}=\"1\"", Uuid)
-		} else {
-			newLine = string(line)
-		}
-		_, err = out.WriteString(newLine + "\n")
-		if err != nil {
-			logger.Warning(err)
-			return err
-		}
-		index++
-	}
-	err = os.Rename(filename+".new", filename)
-	if err != nil {
-		logger.Warning(err)
-		return err
 	}
 	return nil
 }

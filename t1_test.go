@@ -1,3 +1,24 @@
+/*
+ *  Copyright (C) 2019 ~ 2021 Uniontech Software Technology Co.,Ltd
+ *
+ * Author:
+ *
+ * Maintainer:
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package main
 
 import (
@@ -6,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -311,4 +333,130 @@ func TestRestoreExtraDir(t *testing.T) {
 	abc, err = getFileContent(filepath.Join(originDir, "abc"))
 	assert.Nil(t, err)
 	assert.Equal(t, "ABC123", abc)
+}
+
+func TestGetHideWhat(t *testing.T) {
+	tests := []struct {
+		value  string
+		expect string
+	}{
+		{
+			value:  "# hide roota",
+			expect: "roota",
+		},
+		{
+			value:  "#hide roota",
+			expect: "roota",
+		},
+		{
+			value:  " #hide roota",
+			expect: "roota",
+		},
+		{
+			value:  "# hide roota rootb",
+			expect: "roota rootb",
+		},
+	}
+
+	for _, tc := range tests {
+		assert.Equal(t, tc.expect, getHideWhat(tc.value))
+	}
+}
+
+func TestMatchUuidIgnore(t *testing.T) {
+	tests := []struct {
+		value  string
+		expect bool
+	}{
+		{
+			value:  `ENV{ID_FS_UUID}=="47b1b22f-fe7d-40f6-99ec-5f2e32fbf143", ENV{UDISKS_IGNORE}="1"`,
+			expect: true,
+		},
+		{
+			value:  `ENV{ID_FS_TYPE}=="SWAP", ENV{UDISKS_IGNORE}="1"`,
+			expect: false,
+		},
+	}
+	for _, tc := range tests {
+		assert.Equal(t, tc.expect, matchUuidIgnore(tc.value))
+	}
+}
+
+func TestGetIgnoredUuid(t *testing.T) {
+	tests := []struct {
+		value  string
+		expect string
+	}{
+		{
+			value:  `ENV{ID_FS_UUID}=="47b1b22f-fe7d-40f6-99ec-5f2e32fbf143", ENV{UDISKS_IGNORE}="1"`,
+			expect: "47b1b22f-fe7d-40f6-99ec-5f2e32fbf143",
+		},
+		{
+			value:  `ENV{ID_FS_UUID}=="95EF-33CC", ENV{UDISKS_IGNORE}="1"`,
+			expect: "95EF-33CC",
+		},
+		{
+			value:  `ENV{ID_FS_TYPE}=="SWAP", ENV{UDISKS_IGNORE}="1"`,
+			expect: "",
+		},
+	}
+	for _, tc := range tests {
+		assert.Equal(t, tc.expect, getIgnoredUuid(tc.value))
+	}
+}
+
+func TestParseLsblkOutputDevices(t *testing.T) {
+	const jsonText = `
+{
+   "blockdevices": [
+      {"uuid":null, "mountpoint":null, "label":null},
+      {"uuid":"95EF-33CC", "mountpoint":"/boot/efi", "label":"EFI"},
+      {"uuid":"47b1b22f-fe7d-40f6-99ec-5f2e32fbf143", "mountpoint":"/boot", "label":"Boot"},
+      {"uuid":"017415e7-15b1-4812-beaf-8fb75e685f01", "mountpoint":"/", "label":"Roota"},
+      {"uuid":"8bafe9c6-71f5-4b5c-8923-accb280cc12b", "mountpoint":"/media/del1/Rootb", "label":"Rootb"},
+      {"uuid":"150f05ea-629b-4f16-acde-1bf18ac776c9", "mountpoint":"/data", "label":"_dde_data"},
+      {"uuid":"1dee4cfe-7467-4c10-832f-5dfc45c35303", "mountpoint":"/recovery", "label":"Backup"},
+      {"uuid":"791cde56-65a9-463b-a8ad-b5c61d9d993e", "mountpoint":"[SWAP]", "label":"SWAP"}
+   ]
+}
+`
+	devices, err := parseLsblkOutputDevices([]byte(jsonText))
+	assert.Nil(t, err)
+	assert.Equal(t, "95EF-33CC", devices[1].Uuid)
+	assert.Equal(t, "SWAP", devices[7].Label)
+}
+
+func splitToLines(str string) []string {
+	return strings.Split(str, "\n")
+}
+
+func TestModifyRulesFunc(t *testing.T) {
+	lines := splitToLines(
+		`# hide efi
+ENV{ID_FS_UUID}=="95EF-33CC", ENV{UDISKS_IGNORE}="1"
+# hide boot
+ENV{ID_FS_UUID}=="47b1b22f-fe7d-40f6-99ec-5f2e32fbf143", ENV{UDISKS_IGNORE}="1"
+# hide rootb
+ENV{ID_FS_UUID}=="8bafe9c6-71f5-4b5c-8923-accb280cc12b", ENV{UDISKS_IGNORE}="1"
+# hide recovery
+ENV{ID_FS_UUID}=="1dee4cfe-7467-4c10-832f-5dfc45c35303", ENV{UDISKS_IGNORE}="1"
+`)
+	labelUuidMap := map[string]string{
+		"efi":   "95EF-33CC",
+		"boot":  "47b1b22f-fe7d-40f6-99ec-5f2e32fbf143",
+		"roota": "017415e7-15b1-4812-beaf-8fb75e685f01",
+		"rootb": "8bafe9c6-71f5-4b5c-8923-accb280cc12b",
+	}
+	lines = modifyRulesFunc(lines, labelUuidMap,
+		"017415e7-15b1-4812-beaf-8fb75e685f01",
+		"8bafe9c6-71f5-4b5c-8923-accb280cc12b", "Roota")
+	assert.Equal(t, splitToLines(
+		`# hide efi
+ENV{ID_FS_UUID}=="95EF-33CC", ENV{UDISKS_IGNORE}="1"
+# hide boot
+ENV{ID_FS_UUID}=="47b1b22f-fe7d-40f6-99ec-5f2e32fbf143", ENV{UDISKS_IGNORE}="1"
+# hide roota
+ENV{ID_FS_UUID}=="017415e7-15b1-4812-beaf-8fb75e685f01", ENV{UDISKS_IGNORE}="1"
+# hide recovery
+ENV{ID_FS_UUID}=="1dee4cfe-7467-4c10-832f-5dfc45c35303", ENV{UDISKS_IGNORE}="1"`), lines)
 }

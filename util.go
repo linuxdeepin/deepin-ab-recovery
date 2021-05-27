@@ -1,7 +1,29 @@
+/*
+ *  Copyright (C) 2019 ~ 2021 Uniontech Software Technology Co.,Ltd
+ *
+ * Author:
+ *
+ * Maintainer:
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -134,6 +156,29 @@ func getDeviceUuid(device string) (string, error) {
 	return string(bytes.TrimSpace(out)), nil
 }
 
+// 获取 path 所指路径的硬盘设备路径
+func getPathDisk(path string) (string, error) {
+	out, err := exec.Command("grub-probe", "-t", "disk", path).Output()
+	if err != nil {
+		return "", err
+	}
+	disk := string(bytes.TrimSpace(out))
+	_, err = os.Stat(disk)
+	if err != nil {
+		return "", err
+	}
+	return disk, nil
+}
+
+// 获取 device 所指硬盘分区块设备的标签，比如 /dev/sda1 的标签为 Boot。
+func getDeviceLabel(device string) (string, error) {
+	out, err := exec.Command("blkid", "-o", "value", "-s", "LABEL", device).Output()
+	if err != nil {
+		return "", err
+	}
+	return string(bytes.TrimSpace(out)), nil
+}
+
 func getDeviceByUuid(uuid string) (string, error) {
 	if uuid == "" {
 		return "", xerrors.New("parameter uuid is empty")
@@ -166,6 +211,54 @@ func getPathFromLsblkOutput(out string, uuid string) string {
 		}
 	}
 	return ""
+}
+
+type lsblkDevices struct {
+	BlockDevices []blockDevice `json:"blockdevices"`
+}
+
+type blockDevice struct {
+	Uuid       string `json:"uuid"`
+	MountPoint string `json:"mountpoint"`
+	Label      string `json:"label"`
+}
+
+func parseLsblkOutputDevices(data []byte) ([]blockDevice, error) {
+	var devices lsblkDevices
+	err := json.Unmarshal(data, &devices)
+	if err != nil {
+		return nil, err
+	}
+	return devices.BlockDevices, nil
+}
+
+func toLabelUuidMap(devices []blockDevice) map[string]string {
+	out := make(map[string]string)
+	for _, device := range devices {
+		if out["boot"] == "" &&
+			(strings.EqualFold(device.Label, "boot") || device.MountPoint == "/boot") {
+			out["boot"] = device.Uuid
+		} else if out["efi"] == "" &&
+			(strings.EqualFold(device.Label, "efi") || device.MountPoint == "/boot/efi") {
+			out["efi"] = device.Uuid
+		} else if out["recovery"] == "" &&
+			(strings.EqualFold(device.Label, "backup") || device.MountPoint == "/recovery") {
+			out["recovery"] = device.Uuid
+		}
+	}
+	return out
+}
+
+func getLabelUuidMap(disk string) (map[string]string, error) {
+	out, err := exec.Command("lsblk", "-J", "-o", "UUID,MOUNTPOINT,LABEL", disk).Output()
+	if err != nil {
+		return nil, xerrors.Errorf("failed to run lsblk: %w", err)
+	}
+	devices, err := parseLsblkOutputDevices(out)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to parse lsblk json output: %w", err)
+	}
+	return toLabelUuidMap(devices), nil
 }
 
 func isMounted(mountPoint string) (bool, error) {
