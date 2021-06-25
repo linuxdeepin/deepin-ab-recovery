@@ -8,58 +8,60 @@ import (
 	"syscall"
 	"testing"
 
-	C "gopkg.in/check.v1"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-type utilSuite struct{}
-
-func TestDeepinABRecovery(t *testing.T) { C.TestingT(t) }
-func init() {
-	C.Suite(&utilSuite{})
-}
-
-func (*utilSuite) TestSuiteLog(c *C.C) {
+func TestUtilLog(t *testing.T) {
 	// 重定向日志到临时文件
-	dir := c.MkDir()
-	tmpfile, err := ioutil.TempFile(dir, "test.log")
-	c.Assert(err, C.Equals, nil)
+	testDataPath := "./TemporaryTestDataDirectoryNeedDelete"
+	err := os.Mkdir(testDataPath, 0777)
+	require.Nil(t, err)
+	defer func() {
+		err := os.RemoveAll(testDataPath)
+		require.Nil(t, err)
+	}()
+	tmpfile, err := ioutil.TempFile(testDataPath, "test.log")
+	require.Nil(t, err)
+	defer tmpfile.Close()
+
 	os.Stdout = tmpfile
 	os.Stderr = tmpfile
-
+	defer func() {
+		// 恢复标准输出
+		os.Stdout = os.NewFile(uintptr(syscall.Stdout), "/dev/stdout")
+		os.Stderr = os.NewFile(uintptr(syscall.Stderr), "/dev/stderr")
+	}()
 	// 测试log
 	setLogEnv(logEnvGrubMkconfig)
 	testData := "this is a test.abcd"
 	logWarningf(testData)
 	logData, err := ioutil.ReadFile(tmpfile.Name())
-	c.Assert(err, C.Equals, nil)
+	require.Nil(t, err)
 	// logWarningf会补\n
-	c.Check(testData+"\n", C.Equals, string(logData))
-
-	// 恢复标准输出
-	os.Stdout = os.NewFile(uintptr(syscall.Stdout), "/dev/stdout")
-	os.Stderr = os.NewFile(uintptr(syscall.Stderr), "/dev/stderr")
+	assert.Equal(t, testData+"\n", string(logData))
 }
 
-func (*utilSuite) TestSuiteUtilArch(c *C.C) {
+func TestUtilArch(t *testing.T) {
 	arch := globalArch
 
 	globalArch = "sw_64"
-	c.Check(isArchSw(), C.Equals, true)
+	assert.True(t, isArchSw())
 
 	globalArch = "mips10"
-	c.Check(isArchMips(), C.Equals, true)
+	assert.True(t, isArchMips())
 
 	globalArch = "arm10"
-	c.Check(isArchArm(), C.Equals, true)
+	assert.True(t, isArchArm())
 
 	globalArch = arch
 }
 
-func (*utilSuite) TestSuiteUtilDiskDevice(c *C.C) {
+func TestUtilDiskDevice(t *testing.T) {
 	filepathNames, err := filepath.Glob(filepath.Join("/dev/disk/by-uuid", "*"))
 	if err != nil || len(filepathNames) == 0 {
 		// 没有找到则无法继续测试，不能认为是hasDiskDevice()函数测试失败
-		c.Skip("can not find /dev/disk/by-uuid")
+		t.Skip("can not find /dev/disk/by-uuid")
 	}
 	for i := range filepathNames {
 		devUUID := path.Base(filepathNames[i])
@@ -68,100 +70,91 @@ func (*utilSuite) TestSuiteUtilDiskDevice(c *C.C) {
 			continue
 		}
 		name, err := getDeviceByUuid(devUUID)
-		c.Assert(err, C.Equals, nil)
-		c.Check(name, C.Not(C.Equals), "")
+		require.Nil(t, err)
+		assert.NotEmpty(t, name)
 		_, err = getDeviceLabel(name)
-		c.Assert(err, C.Equals, nil)
+		require.Nil(t, err)
 	}
 }
 
-func (*utilSuite) TestSuiteUtilOsProber(c *C.C) {
+func TestUtilOsProber(t *testing.T) {
 	devices, err := runOsProber()
 	if err != nil {
-		c.Skip("need root")
+		t.Skip("need root")
 	}
 	for _, device := range devices {
 		uuid, err := getDeviceUuid(device)
 		if err != nil {
 			continue
 		}
-		c.Check(uuid, C.Not(C.Equals), "")
+		assert.NotEmpty(t, uuid)
 	}
 }
 
-func (*utilSuite) TestSuiteUtilRunOsRelease(c *C.C) {
-	testData := map[string]string{"SystemName": "UnionTech OS Desktop", "SystemName[zh_CN]": "统信桌面操作系统", "ProductType": "Desktop", "ProductType[zh_CN]": "桌面", "EditionName": "Professional", "EditionName[zh_CN]": "专业版", "MajorVersion": "20", "MinorVersion": "1040", "OsBuild": "11018.101"}
-	isFakeData := false
+func TestUtilRunOsRelease(t *testing.T) {
 	ret, err := runOsRelease()
 	if err != nil {
-		if os.IsNotExist(err) {
-			dataStr := "[Version]\n"
-			for k, v := range testData {
-				dataStr = dataStr + k + "=" + v + "\n"
-			}
-			ret = parseOsReleaseOutput([]byte(dataStr))
-			isFakeData = true
-		} else {
-			c.Assert(err, C.Equals, nil)
-		}
+		t.Skip("")
 	}
-	if isFakeData {
-		for k, v := range ret {
-			c.Check(testData[k], C.Equals, v)
-		}
-	} else {
-		c.Check(len(ret), C.Not(C.Equals), 0)
+	assert.NotEqual(t, len(ret), 0)
+}
+
+func TestUtilParseOsReleaseOutput(t *testing.T) {
+	testData := map[string]string{"SystemName": "UnionTech OS Desktop", "SystemName[zh_CN]": "统信桌面操作系统", "ProductType": "Desktop", "ProductType[zh_CN]": "桌面", "EditionName": "Professional", "EditionName[zh_CN]": "专业版", "MajorVersion": "20", "MinorVersion": "1040", "OsBuild": "11018.101"}
+	dataStr := "[Version]\n"
+	for k, v := range testData {
+		dataStr = dataStr + k + "=" + v + "\n"
+	}
+	ret := parseOsReleaseOutput([]byte(dataStr))
+	for k, v := range ret {
+		assert.Equal(t, testData[k], v)
 	}
 }
 
-func (*utilSuite) TestSuiteUtilPathDisk(c *C.C) {
+func TestUtilPathDisk(t *testing.T) {
 	rootDisk, err := getPathDisk("/")
 	if err != nil {
-		c.Skip("can not find grub-probe")
+		t.Skip("can not find grub-probe")
 	}
-
 	_, err = getLabelUuidMap(rootDisk)
-	c.Assert(err, C.Equals, nil)
+	require.Nil(t, err)
 }
 
-func (*utilSuite) TestSuiteUtilMount(c *C.C) {
+func TestUtilMount(t *testing.T) {
 	_, err := ioutil.ReadFile("/proc/self/mounts")
 	if err != nil {
-		c.Skip("can not read /proc/self/mounts")
+		t.Skip("can not read /proc/self/mounts")
 	}
 	_, err = isMounted("/")
-	c.Assert(err, C.Equals, nil)
+	require.Nil(t, err)
 	_, err = isMountedRo("/")
-	c.Assert(err, C.Equals, nil)
+	require.Nil(t, err)
 }
 
-func (*utilSuite) TestSuiteUtilBoard(c *C.C) {
-	testData := map[string]string{"Version": "1.2.3", "Info": "test"}
-	isFakeData := false
+func TestUtilBoard(t *testing.T) {
 	info, err := readBoardInfo()
 	if err != nil {
-		if os.IsNotExist(err) {
-			dataStr := ""
-			for k, v := range testData {
-				dataStr = dataStr + k + ":" + v + "\n"
-			}
-			info = parseBoardInfo([]byte(dataStr))
-			isFakeData = true
-		} else {
-			c.Assert(err, C.Equals, nil)
-		}
+		t.Skip("")
 	}
-	if isFakeData {
-		c.Check(info.biosVersion, C.Equals, "1.2.3")
-	}
+	assert.NotEmpty(t, info)
 }
 
-func (*utilSuite) TestSuiteUtilBootOptions(c *C.C) {
+func TestUtilParseBoardInfo(t *testing.T) {
+	testData := map[string]string{"Version": "1.2.3", "Info": "test"}
+	dataStr := ""
+	for k, v := range testData {
+		dataStr = dataStr + k + ":" + v + "\n"
+	}
+	info := parseBoardInfo([]byte(dataStr))
+	assert.Equal(t, info.biosVersion, "1.2.3")
+}
+
+func TestUtilBootOptions(t *testing.T) {
 	content, err := ioutil.ReadFile("/proc/cmdline")
 	if err != nil {
-		c.Skip("can not read /proc/cmdline")
+		t.Skip("can not read /proc/cmdline")
 	}
 	content2, err := getBootOptions()
-	c.Assert(err, C.Equals, nil)
-	c.Check(string(content), C.Equals, content2)
+	require.Nil(t, err)
+	assert.Equal(t, string(content), content2)
 }

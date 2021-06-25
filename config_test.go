@@ -4,41 +4,47 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
+	"testing"
 
-	C "gopkg.in/check.v1"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/stretchr/testify/require"
 )
 
-type configSuite struct{}
-
-func init() {
-	C.Suite(&configSuite{})
-}
-
-func (*configSuite) TestSuiteConfig(c *C.C) {
-	dir := c.MkDir()
-	tmpfile, err := ioutil.TempFile(dir, "ab-recovery.json")
-	c.Assert(err, C.Equals, nil)
+func TestConfig(t *testing.T) {
+	testDataPath := "./TemporaryTestDataDirectoryNeedDelete"
+	err := os.Mkdir(testDataPath, 0777)
+	require.Nil(t, err)
+	defer func() {
+		err := os.RemoveAll(testDataPath)
+		require.Nil(t, err)
+	}()
+	tmpfile, err := ioutil.TempFile(testDataPath, "ab-recovery.json")
+	require.Nil(t, err)
+	defer tmpfile.Close()
 
 	var cfg Config
-	isFakeData := false
-	err = loadConfig(configFile, &cfg)
-	if err != nil {
-		if os.IsNotExist(err) {
-			c.Log("TestSuiteConfig ReadFile error:", err)
-			data := []byte("{\"Current\":\"a6903bdb-fff8-4c29-a189-a943682fa8e4\",\"Backup\":\"c180eb18-96df-47b3-9570-033528d34c3f\",\"Version\":\"20\",\"Time\":\"2021-06-02T13:16:22.3229104+08:00\"}")
-			err = json.Unmarshal(data, &cfg)
-			c.Assert(err, C.Equals, nil)
-			isFakeData = true
-		} else {
-			c.Assert(err, C.Equals, nil)
-		}
-	}
-
+	data := []byte(`{"Current":"a6903bdb-fff8-4c29-a189-a943682fa8e4","Backup":"c180eb18-96df-47b3-9570-033528d34c3f","Version":"20","Time":"2021-06-02T13:16:22.3229104+08:00"}`)
+	err = json.Unmarshal(data, &cfg)
+	require.Nil(t, err)
 	err = cfg.save(tmpfile.Name())
-	c.Assert(err, C.Equals, nil)
+	require.Nil(t, err)
 
-	if !isFakeData {
-		err = cfg.check()
-		c.Assert(err, C.Equals, nil)
+	var cfgLoad Config
+	err = loadConfig(tmpfile.Name(), &cfgLoad)
+	require.Nil(t, err)
+	assert.Equal(t, cfg.Current, cfgLoad.Current)
+	assert.Equal(t, cfg.Backup, cfgLoad.Backup)
+	assert.Equal(t, cfg.Version, cfgLoad.Version)
+	assert.Equal(t, cfg.Time, cfgLoad.Time)
+}
+
+func TestConfigCheck(t *testing.T) {
+	var cfg Config
+	err := loadConfig(configFile, &cfg)
+	if err != nil {
+		t.Skip("file not exist")
 	}
+	err = cfg.check()
+	require.Nil(t, err)
 }
