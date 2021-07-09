@@ -23,6 +23,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -32,6 +33,7 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
+	"time"
 
 	"golang.org/x/xerrors"
 	"pkg.deepin.io/lib/strv"
@@ -41,6 +43,8 @@ const (
 	logEnvCommon = iota
 	logEnvGrubMkconfig
 )
+
+const osProberTimeout = 5 * time.Minute
 
 var _logEnv = logEnvCommon
 
@@ -406,7 +410,10 @@ func parseOsProberOutput(data []byte) []string {
 }
 
 func runOsProber() ([]string, error) {
-	out, err := exec.Command("os-prober").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), osProberTimeout)
+	defer cancel()
+
+	out, err := exec.CommandContext(ctx, "os-prober").Output()
 	if err != nil {
 		return nil, err
 	}
