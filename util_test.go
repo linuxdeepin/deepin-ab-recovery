@@ -16,13 +16,13 @@ func TestUtilLog(t *testing.T) {
 	// 重定向日志到临时文件
 	testDataPath := "./TemporaryTestDataDirectoryNeedDelete"
 	err := os.Mkdir(testDataPath, 0777)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer func() {
 		err := os.RemoveAll(testDataPath)
-		require.Nil(t, err)
+		require.NoError(t, err)
 	}()
 	tmpfile, err := ioutil.TempFile(testDataPath, "test.log")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer tmpfile.Close()
 
 	os.Stdout = tmpfile
@@ -37,7 +37,7 @@ func TestUtilLog(t *testing.T) {
 	testData := "this is a test.abcd"
 	logWarningf(testData)
 	logData, err := ioutil.ReadFile(tmpfile.Name())
-	require.Nil(t, err)
+	require.NoError(t, err)
 	// logWarningf会补\n
 	assert.Equal(t, testData+"\n", string(logData))
 }
@@ -70,10 +70,10 @@ func TestUtilDiskDevice(t *testing.T) {
 			continue
 		}
 		name, err := getDeviceByUuid(devUUID)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		assert.NotEmpty(t, name)
 		_, err = getDeviceLabel(name)
-		require.Nil(t, err)
+		require.NoError(t, err)
 	}
 }
 
@@ -117,7 +117,7 @@ func TestUtilPathDisk(t *testing.T) {
 		t.Skip("can not find grub-probe")
 	}
 	_, err = getLabelUuidMap(rootDisk)
-	require.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func TestUtilMount(t *testing.T) {
@@ -126,9 +126,9 @@ func TestUtilMount(t *testing.T) {
 		t.Skip("can not read /proc/self/mounts")
 	}
 	_, err = isMounted("/")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	_, err = isMountedRo("/")
-	require.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func TestUtilBoard(t *testing.T) {
@@ -155,6 +155,6 @@ func TestUtilBootOptions(t *testing.T) {
 		t.Skip("can not read /proc/cmdline")
 	}
 	content2, err := getBootOptions()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, string(content), content2)
 }

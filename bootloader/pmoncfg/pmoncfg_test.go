@@ -186,7 +186,7 @@ func TestPmonCfg_ReplaceRootUuid(t *testing.T) {
 	filename := "testdata/boot.cfg"
 
 	cfg, err := ParsePmonCfgFile(filename)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	cfg.ReplaceRootUuid("a13e2b9d-572f-4a25-ab8f-b2eda8c3f8ea")
 

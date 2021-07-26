@@ -90,7 +90,7 @@ func TestIsMounted(t *testing.T) {
 
 func TestUname(t *testing.T) {
 	utsName, err := uname()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	t.Log("machine:", utsName.machine)
 	t.Log("release:", utsName.release)
 
@@ -100,12 +100,12 @@ func TestUname(t *testing.T) {
 	}
 
 	out, err := exec.Command("uname", "-m").Output()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	out = bytes.TrimSpace(out)
 	assert.Equal(t, string(out), utsName.machine)
 
 	out, err = exec.Command("uname", "-r").Output()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	out = bytes.TrimSpace(out)
 	assert.Equal(t, string(out), utsName.release)
 }
@@ -118,16 +118,16 @@ func TestCharsToString(t *testing.T) {
 
 func TestWriteExcludeFile(t *testing.T) {
 	filename, err := writeExcludeFile([]string{"/boot", "/home"})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	t.Log("temp filename:", filename)
 	content, err := ioutil.ReadFile(filename)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []byte(`/boot
 /home
 `), content)
 
 	err = os.Remove(filename)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestFindKernelFiles(t *testing.T) {
@@ -136,7 +136,7 @@ func TestFindKernelFiles(t *testing.T) {
 		"config-4.19.0-6-amd64", "initrd.img-4.19.0-6-amd64",
 		"System.map-4.19.0-6-amd64", "vmlinuz-4.19.0-6-amd64",
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "/boot/vmlinuz-4.19.0-6-amd64", result.linux)
 	assert.Equal(t, "/boot/initrd.img-4.19.0-6-amd64", result.initrd)
 
@@ -145,7 +145,7 @@ func TestFindKernelFiles(t *testing.T) {
 		"initrd.img-4.19.34-1deepin-generic", "dtbo.img",
 		"System.map-4.19.0-arm64-desktop", "vmlinuz-4.19.0-arm64-desktop",
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "/boot/vmlinuz-4.19.0-arm64-desktop", result.linux)
 	assert.Equal(t, "/boot/initrd.img-4.19.0-arm64-desktop", result.initrd)
 
@@ -155,7 +155,7 @@ func TestFindKernelFiles(t *testing.T) {
 		"dtbo.img",
 		"System.map-4.19.0-arm64-desktop", "vmlinuz-4.19.0-arm64-desktop",
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "/boot/vmlinuz-4.19.0-arm64-desktop", result.linux)
 	assert.Equal(t, "", result.initrd)
 }
@@ -212,7 +212,7 @@ func TestParseOsProberOutput(t *testing.T) {
 
 func TestIsSymlink(t *testing.T) {
 	tempDir, err := ioutil.TempDir("", "isSymlinkTest")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer func() {
 		err := os.RemoveAll(tempDir)
 		if err != nil {
@@ -222,18 +222,18 @@ func TestIsSymlink(t *testing.T) {
 
 	f1 := filepath.Join(tempDir, "f1")
 	err = ioutil.WriteFile(f1, []byte("hello"), 0644)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	f2 := filepath.Join(tempDir, "f2")
 	err = os.Symlink(f1, f2)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	isSym, err := isSymlink(f1)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, isSym)
 
 	isSym, err = isSymlink(f2)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.True(t, isSym)
 }
 
@@ -265,7 +265,7 @@ func TestBackupExtraDir(t *testing.T) {
 	}
 
 	tempDir, err := ioutil.TempDir("", "backupExtraDirTest")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer func() {
 		err := os.RemoveAll(tempDir)
 		if err != nil {
@@ -274,29 +274,29 @@ func TestBackupExtraDir(t *testing.T) {
 	}()
 
 	err = prepareDir(filepath.Join(tempDir, "/var/lib/xyz"), _testDataExtraDir)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	originDir := filepath.Join(tempDir, "/var/lib/xyz")
 	hospiceDir := filepath.Join(tempDir, "hospice")
 	err = backupExtraDir(originDir, "", hospiceDir)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	// 执行两次
 	err = backupExtraDir(originDir, "", hospiceDir)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	abc, err := getFileContent(filepath.Join(hospiceDir, "xyz/abc"))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "ABC", abc)
 
 	def, err := getFileContent(filepath.Join(hospiceDir, "xyz/dir/def"))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "DEF", def)
 }
 
 func TestRestoreExtraDir(t *testing.T) {
 	tempDir, err := ioutil.TempDir("", "restoreExtraDirTest")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer func() {
 		err := os.RemoveAll(tempDir)
 		if err != nil {
@@ -306,32 +306,32 @@ func TestRestoreExtraDir(t *testing.T) {
 
 	originDir := filepath.Join(tempDir, "/var/lib/xyz")
 	err = prepareDir(originDir, _testDataExtraDir)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	hospiceDir := filepath.Join(tempDir, "hospice")
 	err = prepareDir(filepath.Join(hospiceDir, "xyz"), _testDataExtraDir)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	err = restoreExtraDir(originDir, "", hospiceDir)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	// 执行两次
 	err = restoreExtraDir(originDir, "", hospiceDir)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	abc, err := getFileContent(filepath.Join(originDir, "abc"))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "ABC", abc)
 
 	def, err := getFileContent(filepath.Join(originDir, "dir/def"))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "DEF", def)
 
 	// 测试软链接是否生效
 	err = ioutil.WriteFile(filepath.Join(hospiceDir, "xyz/abc"), []byte("ABC123"), 0644)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	abc, err = getFileContent(filepath.Join(originDir, "abc"))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "ABC123", abc)
 }
 
@@ -421,7 +421,7 @@ func TestParseLsblkOutputDevices(t *testing.T) {
 }
 `
 	devices, err := parseLsblkOutputDevices([]byte(jsonText))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "95EF-33CC", devices[1].Uuid)
 	assert.Equal(t, "SWAP", devices[7].Label)
 }
