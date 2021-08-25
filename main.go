@@ -134,6 +134,31 @@ func printShHideOs() (exitCode int) {
 		fmt.Printf("GRUB_OS_PROBER_SKIP_LIST=\"$GRUB_OS_PROBER_SKIP_LIST %s@%s\"\n", uuid, device)
 		return
 	}
+	// 没有找到备份分区的情况,默认将rootb分区作为备份分区
+	uuid, err := getUuidByLabel("rootb")
+	if err != nil {
+		logWarningf("get rootb uuid error: %v", err)
+		exitCode = 3
+		return
+	}
+	mountPoint, err := getMountPointByLabel("rootb")
+	if err != nil {
+		logWarningf("get rootb mountPoint error: %v", err)
+		exitCode = 4
+		return
+	}
+	if strings.TrimSpace(mountPoint) == "/" {
+		logWarningf("Cannot use rootb as a backup partition")
+		exitCode = 5
+		return
+	}
+	device, err := getDeviceByUuid(uuid)
+	if err != nil {
+		logWarningf("get backup device by backup uuid error: %v", err)
+		exitCode = 6
+		return
+	}
+	fmt.Printf("GRUB_OS_PROBER_SKIP_LIST=\"$GRUB_OS_PROBER_SKIP_LIST %s@%s\"\n", uuid, device)
 	return
 }
 

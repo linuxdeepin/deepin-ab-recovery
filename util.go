@@ -198,6 +198,42 @@ func getDeviceByUuid(uuid string) (string, error) {
 	return devPath, nil
 }
 
+func getUuidByLabel(label string) (uuid string, err error) {
+	out, err := exec.Command("lsblk", "-J", "-o", "UUID,MOUNTPOINT,LABEL").Output()
+	if err != nil {
+		return "", xerrors.Errorf("failed to run lsblk: %w", err)
+	}
+	var blockDevices lsblkDevices
+	err = json.Unmarshal(out, &blockDevices)
+	if err != nil {
+		return "", xerrors.Errorf("failed to unmarshal: %w", err)
+	}
+	for _, d := range blockDevices.BlockDevices {
+		if strings.ToLower(strings.TrimSpace(d.Label)) == label {
+			return d.Uuid, nil
+		}
+	}
+	return "", xerrors.Errorf("failed to get %q uuid", label)
+}
+
+func getMountPointByLabel(label string) (mountPoint string, err error) {
+	out, err := exec.Command("lsblk", "-J", "-o", "UUID,MOUNTPOINT,LABEL").Output()
+	if err != nil {
+		return "", xerrors.Errorf("failed to run lsblk: %w", err)
+	}
+	var blockDevices lsblkDevices
+	err = json.Unmarshal(out, &blockDevices)
+	if err != nil {
+		return "", xerrors.Errorf("failed to unmarshal: %w", err)
+	}
+	for _, d := range blockDevices.BlockDevices {
+		if strings.ToLower(strings.TrimSpace(d.Label)) == label {
+			return d.MountPoint, nil
+		}
+	}
+	return "", xerrors.Errorf("failed to get %q mountPoint", label)
+}
+
 func getPathFromLsblkOutput(out string, uuid string) string {
 	if uuid == "" {
 		return ""

@@ -23,10 +23,12 @@ package main
 
 import (
 	"bytes"
+	"golang.org/x/xerrors"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -459,4 +461,56 @@ ENV{ID_FS_UUID}=="47b1b22f-fe7d-40f6-99ec-5f2e32fbf143", ENV{UDISKS_IGNORE}="1"
 ENV{ID_FS_UUID}=="017415e7-15b1-4812-beaf-8fb75e685f01", ENV{UDISKS_IGNORE}="1"
 # hide recovery
 ENV{ID_FS_UUID}=="1dee4cfe-7467-4c10-832f-5dfc45c35303", ENV{UDISKS_IGNORE}="1"`), lines)
+}
+
+func Test_getUuidByLabel(t *testing.T) {
+	tests := []struct {
+		label    string
+		expected error
+	}{
+		{
+			"testlabel1",
+			xerrors.Errorf("failed to get %q uuid", "testlabel1"),
+		},
+		{
+			"testlabel2",
+			xerrors.Errorf("failed to get %q uuid", "testlabel2"),
+		},
+	}
+	for i, data := range tests {
+		t.Run("Test_getUuidByLabel"+strconv.Itoa(i), func(t *testing.T) {
+			_, err := getUuidByLabel(data.label)
+			if err == nil {
+				assert.Equal(t, data.expected, err)
+			} else {
+				assert.Equal(t, data.expected.Error(), err.Error())
+			}
+		})
+	}
+}
+
+func Test_getMountPointByLabel(t *testing.T) {
+	tests := []struct {
+		label    string
+		expected error
+	}{
+		{
+			"testlabel1",
+			xerrors.Errorf("failed to get %q mountPoint", "testlabel1"),
+		},
+		{
+			"testlabel2",
+			xerrors.Errorf("failed to get %q mountPoint", "testlabel2"),
+		},
+	}
+	for i, data := range tests {
+		t.Run("Test_getUuidByLabel"+strconv.Itoa(i), func(t *testing.T) {
+			_, err := getMountPointByLabel(data.label)
+			if err == nil {
+				assert.Equal(t, data.expected, err)
+			} else {
+				assert.Equal(t, data.expected.Error(), err.Error())
+			}
+		})
+	}
 }
