@@ -514,3 +514,32 @@ func Test_getMountPointByLabel(t *testing.T) {
 		})
 	}
 }
+
+func Test_creatFile(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "creatFileTest")
+	require.NoError(t, err)
+	defer func() {
+		err := os.RemoveAll(tempDir)
+		if err != nil {
+			t.Logf("remove temp dir failed: %v", err)
+		}
+	}()
+	creatFile(filepath.Join(tempDir, "file1"))
+	assert.FileExists(t, filepath.Join(tempDir, "file1"))
+}
+
+func Test_backupFinishedFileExist(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "backupFinishedFileExist")
+	require.NoError(t, err)
+	defer func() {
+		err := os.RemoveAll(tempDir)
+		if err != nil {
+			t.Logf("remove temp dir failed: %v", err)
+			return
+		}
+		assert.True(t, !backupFinishedFileExist(filepath.Join(tempDir, "file2")))
+	}()
+	creatFile(filepath.Join(tempDir, "file2"))
+	assert.FileExists(t, filepath.Join(tempDir, "file2"))
+	assert.True(t, !backupFinishedFileExist(filepath.Join(tempDir, "file2"))) // 需要root用户创建的文件才会被认为是备份完成的标志文件
+}

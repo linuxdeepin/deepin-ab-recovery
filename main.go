@@ -538,11 +538,7 @@ func runRsync(excludeFile string) error {
 	cmd := exec.Command("rsync", rsyncArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-	if err != nil {
-		return err
-	}
-	return nil
+	return cmd.Run()
 }
 
 func backupKernel() (kFiles *kernelFiles, err error) {

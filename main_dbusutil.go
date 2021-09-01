@@ -66,3 +66,16 @@ func (v *Manager) setPropBackupTime(value int64) (changed bool) {
 func (v *Manager) emitPropChangedBackupTime(value int64) error {
 	return v.service.EmitPropertyChanged(v, "BackupTime", value)
 }
+
+func (v *Manager) setPropHasBackedUp(value bool) (changed bool) {
+	if v.HasBackedUp != value {
+		v.HasBackedUp = value
+		v.emitPropChangedHasBackedUp(value)
+		return true
+	}
+	return false
+}
+
+func (v *Manager) emitPropChangedHasBackedUp(value bool) error {
+	return v.service.EmitPropertyChanged(v, "HasBackedUp", value)
+}

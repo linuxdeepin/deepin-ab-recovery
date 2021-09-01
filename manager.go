@@ -23,6 +23,7 @@ package main
 
 import (
 	"errors"
+	"os"
 	"os/exec"
 	"sync"
 	"syscall"
@@ -37,8 +38,9 @@ const (
 	dbusInterface   = "com.deepin.ABRecovery"
 	dbusServiceName = dbusInterface
 
-	jobKindBackup  = "backup"
-	jobKindRestore = "restore"
+	jobKindBackup        = "backup"
+	jobKindRestore       = "restore"
+	abBackupFinishedFile = "/tmp/ab-backup-finished"
 )
 
 var msgRollBack = Tr("Roll back to %s (%s)")
@@ -56,6 +58,7 @@ type Manager struct {
 	ConfigValid   bool
 	BackupVersion string
 	BackupTime    int64
+	HasBackedUp   bool
 
 	cfg Config
 
@@ -73,7 +76,7 @@ func newManager(service *dbusutil.Service) *Manager {
 	m := &Manager{
 		service: service,
 	}
-
+	m.HasBackedUp = backupFinishedFileExist(abBackupFinishedFile)
 	//var cfg Config
 	err := loadConfig(configFile, &m.cfg)
 	if err != nil {
@@ -191,6 +194,8 @@ func (m *Manager) startBackup(envVars []string) error {
 			backupTime := m.cfg.Time.Unix()
 			m.setPropBackupTime(backupTime)
 			m.setPropBackupVersion(m.cfg.Version)
+			creatFile(abBackupFinishedFile)
+			m.setPropHasBackedUp(true)
 		}
 		m.PropsMu.Unlock()
 
@@ -333,4 +338,24 @@ func (m *Manager) canQuit() bool {
 	can := !m.BackingUp && !m.Restoring
 	m.PropsMu.Unlock()
 	return can
+}
+
+func creatFile(path string) {
+	f, err := os.Create(path)
+	if err != nil {
+		logger.Warning(err)
+		return
+	}
+	defer func() {
+		_ = f.Close()
+	}()
+}
+
+func backupFinishedFileExist(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	sysInfo := info.Sys().(*syscall.Stat_t)
+	return sysInfo.Gid == 0 && sysInfo.Uid == 0
 }
