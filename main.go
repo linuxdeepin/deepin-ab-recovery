@@ -23,6 +23,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -83,17 +84,28 @@ var options struct {
 	printShHideOs  bool
 }
 
-var _extraDirs = []struct {
-	originDir       string
-	hospiceChildDir string
-}{
+type extraDir struct {
+	originDir       string   // 需要备份的文件夹
+	hospiceChildDir string   // 为空时,和base(originDir)一致
+	specifiedFiles  []string // 该切片内只能存放originDir中的文件或文件夹名
+}
+
+var _extraDirs = []extraDir{
 	{
 		originDir: "/var/lib/systemd",
 	},
 	{
 		originDir: "/var/uos",
+		specifiedFiles: []string{
+			"os-license",
+		},
 	},
 }
+
+const backupRecordPath = "/var/lib/deepin-ab-recovery/record.json"
+
+var _lastBackUpRecord map[string]string
+var _currentBackUpRecord map[string]string
 
 func init() {
 	flag.BoolVar(&options.noRsync, "no-rsync", false, "")
@@ -391,7 +403,14 @@ func backup(cfg *Config, envVars []string) error {
 		return xerrors.Errorf("failed to save config file %q: %w", configFile, err)
 	}
 
-	backupAllExtraDirs()
+	initBackUpRecord(backupRecordPath, defaultHospiceDir)
+	recoverDeprecatedFilesOrDirs(backupRecordPath)
+	err = updateBackUpRecordFile(backupRecordPath)
+	if err != nil {
+		logger.Warning(err)
+		return err
+	}
+	backupExtra()
 
 	err = runRsync(tmpExcludeFile)
 	if err != nil {
@@ -477,47 +496,33 @@ func backup(cfg *Config, envVars []string) error {
 	return nil
 }
 
-// 备份所有不在根分区的额外文件夹
-func backupAllExtraDirs() {
-	for _, item := range _extraDirs {
-		err := backupExtraDir(item.originDir, item.hospiceChildDir, defaultHospiceDir)
-		if err != nil {
-			logWarningf("backup extra dir %q failed: %v", item.originDir, err)
-		}
-	}
-}
-
 // 备份不在根分区的额外文件夹，比如实际上在 /data 分区的 /var/lib/systemd 文件夹。
-func backupExtraDir(originDir, hospiceChildDir, hospiceDir string) error {
-	if hospiceChildDir == "" {
-		hospiceChildDir = filepath.Base(originDir)
-		if hospiceChildDir == "" {
-			return errors.New("hospiceChildDir is empty")
+func backupExtra() {
+	for origin, backupPath := range _currentBackUpRecord {
+		isSym, err := isSymlink(origin)
+		if err != nil {
+			logger.Warningf("isSymlink %q failed: %v", origin, err)
+			continue
+		}
+		if isSym {
+			continue
+		}
+		err = os.MkdirAll(filepath.Dir(backupPath), 0755)
+		if err != nil {
+			logger.Warningf("make backup dir failed: %v", err)
+			continue
+		}
+		err = os.RemoveAll(backupPath)
+		if err != nil {
+			logger.Warningf("remove dir failed: %v", err)
+			continue
+		}
+		err = exec.Command("cp", "-a", origin, backupPath).Run()
+		if err != nil {
+			logger.Warningf("run cp command failed: %v", err)
+			continue
 		}
 	}
-	isSym, err := isSymlink(originDir)
-	if err != nil {
-		return xerrors.Errorf("isSymlink %q failed: %w", originDir, err)
-	}
-	if isSym {
-		return nil
-	}
-	err = os.MkdirAll(hospiceDir, 0755)
-	if err != nil {
-		return xerrors.Errorf("make hospice dir failed: %w", err)
-	}
-	hDir := filepath.Join(hospiceDir, hospiceChildDir)
-	// 先删除一遍, 确保 hDir 不存在。
-	err = os.RemoveAll(hDir)
-	if err != nil {
-		return xerrors.Errorf("remove dir failed: %w", err)
-	}
-
-	err = exec.Command("cp", "-a", originDir, hDir).Run()
-	if err != nil {
-		return xerrors.Errorf("run cp command failed: %w", err)
-	}
-	return nil
 }
 
 func runRsync(excludeFile string) error {
@@ -871,9 +876,8 @@ func restore(cfg *Config, envVars []string) error {
 	if err != nil {
 		return xerrors.Errorf("failed to write grub cfg: %w", err)
 	}
-
-	restoreAllExtraDirs()
-
+	initBackUpRecord(backupRecordPath, defaultHospiceDir)
+	restoreExtra()
 	// delete cache archive files
 	err = exec.Command("/usr/bin/lastore-apt-clean", "-force-delete").Run()
 	if err != nil {
@@ -897,53 +901,34 @@ func restore(cfg *Config, envVars []string) error {
 	return nil
 }
 
-func restoreAllExtraDirs() {
-	for _, item := range _extraDirs {
-		err := restoreExtraDir(item.originDir, item.hospiceChildDir, defaultHospiceDir)
-		if err != nil {
-			logWarningf("restore extra dir %q failed: %v", item.originDir, err)
-		}
-	}
-}
-
 // 回退不在根分区的额外文件夹，实际上是通过创建软链接完成的。
 // 如果已经是软链接了，则不需要处理。
-func restoreExtraDir(originDir, hospiceChildDir, hospiceDir string) error {
-	if hospiceChildDir == "" {
-		hospiceChildDir = filepath.Base(originDir)
-		if hospiceChildDir == "" {
-			return errors.New("hospiceChildDir is empty")
+func restoreExtra() {
+	for origin, backupPath := range _currentBackUpRecord {
+		isSym, err := isSymlink(origin)
+		if err != nil {
+			logger.Warningf("isSymlink %q failed: %v", origin, err)
+			continue
+		}
+		if isSym {
+			continue
+		}
+		_, err = os.Stat(backupPath)
+		if err != nil {
+			logger.Warningf("stat backup path failed: %v", err)
+			continue
+		}
+		err = os.RemoveAll(origin)
+		if err != nil {
+			logger.Warningf("remove origin dir failed: %v", err)
+			continue
+		}
+		err = os.Symlink(backupPath, origin)
+		if err != nil {
+			logger.Warningf("create symlink for %q failed: %v", origin, err)
+			continue
 		}
 	}
-	isSym, err := isSymlink(originDir)
-	if err != nil {
-		return xerrors.Errorf("isSymlink %q failed: %w", originDir, err)
-	}
-
-	if isSym {
-		return nil
-	}
-
-	// 检查 hDir 文件夹是否存在，它必须存在。
-	hDir := filepath.Join(hospiceDir, hospiceChildDir)
-	hDirInfo, err := os.Stat(hDir)
-	if err != nil {
-		return xerrors.Errorf("stat hDir failed: %w", err)
-	}
-	if !hDirInfo.IsDir() {
-		return errors.New("hDir is not a directory")
-	}
-
-	err = os.RemoveAll(originDir)
-	if err != nil {
-		return xerrors.Errorf("remove origin dir failed: %w", err)
-	}
-
-	err = os.Symlink(hDir, originDir)
-	if err != nil {
-		return xerrors.Errorf("create symlink for %q failed: %w", originDir, err)
-	}
-	return nil
 }
 
 func writeBootloaderCfgRestore(currentUuid, currentDevice, backupUuid string, envVars []string) error {
@@ -1254,4 +1239,117 @@ func getRollBackMenuTextSafe(osDesc string, backupTime time.Time, envVars []stri
 func getRollbackMenuTextForceEn(osDesc string, backupTime time.Time) string {
 	dateTimeStr := backupTime.Format("Mon 02 Jan 2006 03:04:05 PM MST")
 	return fmt.Sprintf(msgRollBack, osDesc, dateTimeStr)
+}
+
+// 根据备份记录,还原修改
+func recoverDeprecatedFilesOrDirs(recordPath string) {
+	if !isExist(recordPath) { // 如果不存在该文件,则为兼容旧版本时使用
+		// 兼容 /var/uos文件夹备份改为 /var/uos/os-license文件备份
+		// 处理软链接和非软链接两种情况
+		isSym, err := isSymlink("/var/uos")
+		if err != nil {
+			logger.Warningf("isSymlink %q failed: %v", "/var/uos", err)
+			return
+		}
+		if isSym {
+			err := os.RemoveAll("/var/uos")
+			if err != nil {
+				logger.Warningf("remove origin dir failed: %v", err)
+				return
+			}
+			err = exec.Command("mv", "/usr/share/deepin-ab-recovery/hospice/uos", "/var").Run()
+			if err != nil {
+				logger.Warningf("mv backup dir to origin dir failed: %v", err)
+				return
+			}
+		} else {
+			err := os.RemoveAll("/usr/share/deepin-ab-recovery/hospice/uos")
+			if err != nil {
+				logger.Warningf("remove origin dir failed: %v", err)
+				return
+			}
+		}
+	}
+
+	for originPath, backupPath := range _lastBackUpRecord {
+		if currentBackupPath, ok := _currentBackUpRecord[originPath]; ok && backupPath == currentBackupPath {
+			continue
+		}
+		// 恢复之前的备份
+		isSym, err := isSymlink(originPath)
+		if err != nil {
+			logger.Warningf("isSymlink %q failed: %v", originPath, err)
+			continue
+		}
+		if isSym {
+			err = os.RemoveAll(originPath)
+			if err != nil {
+				logger.Warningf("remove origin dir failed: %v", err)
+				continue
+			}
+			err = exec.Command("cp", "-a", backupPath, originPath).Run()
+			if err != nil {
+				logger.Warningf("run cp command failed: %v", err)
+				continue
+			}
+		}
+		err = os.RemoveAll(backupPath)
+		if err != nil {
+			logger.Warningf("remove backup file or dir failed: %v", err)
+			continue
+		}
+	}
+	return
+}
+
+// 更新记录备份项的文件
+func updateBackUpRecordFile(path string) error {
+	data, err := json.Marshal(_currentBackUpRecord)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(path, data, 0644)
+}
+
+// 初始化_lastBackUpRecord和_currentBackUpRecord
+func initBackUpRecord(recordPath, hospice string) {
+	// 最新备份配置
+	_currentBackUpRecord = make(map[string]string)
+	for _, item := range _extraDirs {
+		if item.specifiedFiles != nil {
+			var hospiceChildDir string
+			if item.hospiceChildDir == "" {
+				hospiceChildDir = filepath.Base(item.originDir)
+			} else {
+				hospiceChildDir = item.hospiceChildDir
+			}
+			for _, file := range item.specifiedFiles {
+				_currentBackUpRecord[filepath.Join(item.originDir, file)] = filepath.Join(hospice, hospiceChildDir, file)
+			}
+		} else {
+			var hospiceChildDir string
+			if item.hospiceChildDir == "" {
+				hospiceChildDir = filepath.Base(item.originDir)
+			} else {
+				hospiceChildDir = item.hospiceChildDir
+			}
+			_currentBackUpRecord[item.originDir] = filepath.Join(hospice, hospiceChildDir)
+		}
+	}
+	// 备份记录
+	_lastBackUpRecord = make(map[string]string)
+	content, err := ioutil.ReadFile(recordPath)
+	if err != nil {
+		if os.IsExist(err) {
+			logger.Info(err)
+		} else {
+			logger.Warningf("read %s file failed: %v", recordPath, err)
+		}
+		return
+	}
+	err = json.Unmarshal(content, &_lastBackUpRecord)
+	if err != nil {
+		logger.Warningf("unmarshal %s file to json failed: %v", recordPath, err)
+		return
+	}
 }

@@ -259,7 +259,7 @@ func prepareDir(baseDir string, data map[string]string) error {
 	return nil
 }
 
-func TestBackupExtraDir(t *testing.T) {
+func Test_backupExtra(t *testing.T) {
 	_, err := exec.LookPath("cp")
 	if err != nil {
 		// backupExtraDir 依赖 cp 命令
@@ -279,19 +279,16 @@ func TestBackupExtraDir(t *testing.T) {
 	require.NoError(t, err)
 
 	originDir := filepath.Join(tempDir, "/var/lib/xyz")
-	hospiceDir := filepath.Join(tempDir, "hospice")
-	err = backupExtraDir(originDir, "", hospiceDir)
-	assert.NoError(t, err)
+	hospiceDir := filepath.Join(tempDir, "hospice", "/var/lib/xyz")
+	_currentBackUpRecord = make(map[string]string)
+	_currentBackUpRecord[originDir] = hospiceDir
+	backupExtra()
 
-	// 执行两次
-	err = backupExtraDir(originDir, "", hospiceDir)
-	assert.NoError(t, err)
-
-	abc, err := getFileContent(filepath.Join(hospiceDir, "xyz/abc"))
+	abc, err := getFileContent(filepath.Join(hospiceDir, "abc"))
 	assert.NoError(t, err)
 	assert.Equal(t, "ABC", abc)
 
-	def, err := getFileContent(filepath.Join(hospiceDir, "xyz/dir/def"))
+	def, err := getFileContent(filepath.Join(hospiceDir, "dir/def"))
 	assert.NoError(t, err)
 	assert.Equal(t, "DEF", def)
 }
@@ -313,13 +310,9 @@ func TestRestoreExtraDir(t *testing.T) {
 	hospiceDir := filepath.Join(tempDir, "hospice")
 	err = prepareDir(filepath.Join(hospiceDir, "xyz"), _testDataExtraDir)
 	require.NoError(t, err)
-
-	err = restoreExtraDir(originDir, "", hospiceDir)
-	assert.NoError(t, err)
-
-	// 执行两次
-	err = restoreExtraDir(originDir, "", hospiceDir)
-	assert.NoError(t, err)
+	_currentBackUpRecord = make(map[string]string)
+	_currentBackUpRecord[originDir] = filepath.Join(tempDir, "hospice", "xyz")
+	restoreExtra()
 
 	abc, err := getFileContent(filepath.Join(originDir, "abc"))
 	assert.NoError(t, err)
@@ -335,6 +328,165 @@ func TestRestoreExtraDir(t *testing.T) {
 	abc, err = getFileContent(filepath.Join(originDir, "abc"))
 	assert.NoError(t, err)
 	assert.Equal(t, "ABC123", abc)
+}
+
+func Test_initBackUpRecord(t *testing.T) {
+	_extraDirs = _extraDirs[0:0]
+	_extraDirs = append(_extraDirs, extraDir{
+		originDir:       "/abc/xyz0",
+		hospiceChildDir: "qwe",
+		specifiedFiles:  nil,
+	})
+	_extraDirs = append(_extraDirs, extraDir{
+		originDir:       "/abc/xyz1",
+		hospiceChildDir: "",
+		specifiedFiles:  nil,
+	})
+	_extraDirs = append(_extraDirs, extraDir{
+		originDir:       "/abc/xyz2",
+		hospiceChildDir: "qwe",
+		specifiedFiles: []string{
+			"file1",
+		},
+	})
+	_extraDirs = append(_extraDirs, extraDir{
+		originDir:       "/abc/xyz3",
+		hospiceChildDir: "",
+		specifiedFiles: []string{
+			"file2",
+		},
+	})
+	initBackUpRecord("", defaultHospiceDir)
+	assert.Equal(t, filepath.Join(defaultHospiceDir, "qwe"), _currentBackUpRecord["/abc/xyz0"])
+	assert.Equal(t, filepath.Join(defaultHospiceDir, filepath.Base("/abc/xyz1")), _currentBackUpRecord["/abc/xyz1"])
+	assert.Equal(t, filepath.Join(defaultHospiceDir, "qwe", "file1"), _currentBackUpRecord["/abc/xyz2/file1"])
+	assert.Equal(t, filepath.Join(defaultHospiceDir, filepath.Base("/abc/xyz3"), "file2"), _currentBackUpRecord["/abc/xyz3/file2"])
+}
+
+func Test_updateBackUpRecordFile(t *testing.T) {
+	_extraDirs = _extraDirs[0:0]
+	_extraDirs = append(_extraDirs, extraDir{
+		originDir:       "/abc/xyz0",
+		hospiceChildDir: "qwe",
+		specifiedFiles:  nil,
+	})
+	_extraDirs = append(_extraDirs, extraDir{
+		originDir:       "/abc/xyz1",
+		hospiceChildDir: "",
+		specifiedFiles:  nil,
+	})
+	_extraDirs = append(_extraDirs, extraDir{
+		originDir:       "/abc/xyz2",
+		hospiceChildDir: "qwe",
+		specifiedFiles: []string{
+			"file1",
+		},
+	})
+	_extraDirs = append(_extraDirs, extraDir{
+		originDir:       "/abc/xyz3",
+		hospiceChildDir: "",
+		specifiedFiles: []string{
+			"file2",
+		},
+	})
+	initBackUpRecord("", defaultHospiceDir)
+	tempDir, err := ioutil.TempDir("", "restoreExtraDirTest")
+	require.Nil(t, err)
+	defer func() {
+		err := os.RemoveAll(tempDir)
+		if err != nil {
+			t.Logf("remove temp dir failed: %v", err)
+		}
+	}()
+	err = updateBackUpRecordFile(filepath.Join(tempDir, "record.json"))
+	assert.Nil(t, err)
+}
+
+func Test_recoverDeprecatedFilesOrDirs(t *testing.T) {
+	originDir, err := ioutil.TempDir("", "restoreExtraDirTest")
+	require.Nil(t, err)
+	defer func() {
+		err := os.RemoveAll(originDir)
+		if err != nil {
+			t.Logf("remove temp dir failed: %v", err)
+		}
+	}()
+	_extraDirs = _extraDirs[0:0]
+	_extraDirs = append(_extraDirs, extraDir{
+		originDir:       filepath.Join(originDir, "/abc/xyz0"),
+		hospiceChildDir: "qwe",
+		specifiedFiles:  nil,
+	})
+	_extraDirs = append(_extraDirs, extraDir{
+		originDir:       filepath.Join(originDir, "/abc/xyz1"),
+		hospiceChildDir: "",
+		specifiedFiles:  nil,
+	})
+	_extraDirs = append(_extraDirs, extraDir{
+		originDir:       filepath.Join(originDir, "/abc/xyz2"),
+		hospiceChildDir: "qwe",
+		specifiedFiles: []string{
+			"abc",
+		},
+	})
+	_extraDirs = append(_extraDirs, extraDir{
+		originDir:       filepath.Join(originDir, "/abc/xyz3"),
+		hospiceChildDir: "",
+		specifiedFiles: []string{
+			"dir/def",
+		},
+	})
+
+	err = prepareDir(filepath.Join(originDir, "/abc/xyz0"), _testDataExtraDir)
+	require.Nil(t, err)
+	err = prepareDir(filepath.Join(originDir, "/abc/xyz1"), _testDataExtraDir)
+	require.Nil(t, err)
+	err = prepareDir(filepath.Join(originDir, "/abc/xyz2"), _testDataExtraDir)
+	require.Nil(t, err)
+	err = prepareDir(filepath.Join(originDir, "/abc/xyz3"), _testDataExtraDir)
+	require.Nil(t, err)
+
+	backupDir, err := ioutil.TempDir("", "restoreExtraDirTest")
+	require.Nil(t, err)
+	defer func() {
+		err := os.RemoveAll(backupDir)
+		if err != nil {
+			t.Logf("remove temp dir failed: %v", err)
+		}
+	}()
+
+	initBackUpRecord("", backupDir)
+	err = updateBackUpRecordFile(filepath.Join(originDir, "record.json"))
+	assert.Nil(t, err)
+	backupExtra()
+
+	_extraDirs = _extraDirs[0:0]
+	_extraDirs = append(_extraDirs, extraDir{
+		originDir:       filepath.Join(originDir, "/abc/xyz0"),
+		hospiceChildDir: "qwe",
+		specifiedFiles:  nil,
+	})
+	_extraDirs = append(_extraDirs, extraDir{
+		originDir:       filepath.Join(originDir, "/abc/xyz1"),
+		hospiceChildDir: "",
+		specifiedFiles:  nil,
+	})
+	initBackUpRecord(filepath.Join(originDir, "record.json"), backupDir)
+	recoverDeprecatedFilesOrDirs(filepath.Join(originDir, "record.json"))
+	assert.DirExists(t, filepath.Join(backupDir, "qwe"))
+	assert.DirExists(t, filepath.Join(backupDir, filepath.Base("/abc/xyz1")))
+}
+
+func Test_isExist(t *testing.T) {
+	file, err := ioutil.TempFile("", "restoreExtraFileTest")
+	defer func() {
+		err := os.RemoveAll(file.Name())
+		if err != nil {
+			t.Logf("remove temp file failed: %v", err)
+		}
+	}()
+	assert.Nil(t, err)
+	assert.True(t, isExist(file.Name()))
 }
 
 func TestGetHideWhat(t *testing.T) {
