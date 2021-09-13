@@ -1304,6 +1304,10 @@ func recoverDeprecatedFilesOrDirs(recordPath string) {
 
 // 更新记录备份项的文件
 func updateBackUpRecordFile(path string) error {
+	err := os.MkdirAll(filepath.Dir(path), 0755)
+	if err != nil {
+		return err
+	}
 	data, err := json.Marshal(_currentBackUpRecord)
 	if err != nil {
 		return err
@@ -1340,7 +1344,7 @@ func initBackUpRecord(recordPath, hospice string) {
 	_lastBackUpRecord = make(map[string]string)
 	content, err := ioutil.ReadFile(recordPath)
 	if err != nil {
-		if os.IsExist(err) {
+		if os.IsNotExist(err) {
 			logger.Info(err)
 		} else {
 			logger.Warningf("read %s file failed: %v", recordPath, err)
