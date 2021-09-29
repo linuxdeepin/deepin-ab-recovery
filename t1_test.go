@@ -310,8 +310,8 @@ func TestRestoreExtraDir(t *testing.T) {
 	hospiceDir := filepath.Join(tempDir, "hospice")
 	err = prepareDir(filepath.Join(hospiceDir, "xyz"), _testDataExtraDir)
 	require.NoError(t, err)
-	_currentBackUpRecord = make(map[string]string)
-	_currentBackUpRecord[originDir] = filepath.Join(tempDir, "hospice", "xyz")
+	_lastBackUpRecord = make(map[string]string)
+	_lastBackUpRecord[originDir] = filepath.Join(tempDir, "hospice", "xyz")
 	restoreExtra()
 
 	abc, err := getFileContent(filepath.Join(originDir, "abc"))

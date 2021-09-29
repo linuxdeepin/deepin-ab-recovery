@@ -877,6 +877,7 @@ func restore(cfg *Config, envVars []string) error {
 		return xerrors.Errorf("failed to write grub cfg: %w", err)
 	}
 	initBackUpRecord(backupRecordPath, defaultHospiceDir)
+	recoverDeprecatedFilesOrDirs(backupRecordPath)
 	restoreExtra()
 	// delete cache archive files
 	err = exec.Command("/usr/bin/lastore-apt-clean", "-force-delete").Run()
@@ -904,7 +905,7 @@ func restore(cfg *Config, envVars []string) error {
 // 回退不在根分区的额外文件夹，实际上是通过创建软链接完成的。
 // 如果已经是软链接了，则不需要处理。
 func restoreExtra() {
-	for origin, backupPath := range _currentBackUpRecord {
+	for origin, backupPath := range _lastBackUpRecord {
 		isSym, err := isSymlink(origin)
 		if err != nil {
 			logger.Warningf("isSymlink %q failed: %v", origin, err)
