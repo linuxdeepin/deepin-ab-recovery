@@ -54,6 +54,7 @@ const (
 	configFile              = "/etc/deepin/ab-recovery.json"
 	backupMountPoint        = "/deepin-ab-recovery-backup"
 	abRecoveryGrubCfgFile   = "/etc/default/grub.d/11_deepin_ab_recovery.cfg"
+	abRecoveryGrubCfg12File = "/etc/default/grub.d/12_deepin_ab_recovery.cfg"
 	abRecoveryFile          = "/usr/lib/deepin-daemon/ab-recovery"
 	ddeWelcomeFile          = "/usr/lib/deepin-daemon/dde-welcome"
 	abKernelBackupDir       = "/boot/kernel-backup/"
@@ -783,6 +784,10 @@ func fixBackup() error {
 	}
 
 	err = utils.CopyFile(abRecoveryFile, backupPartitionAbRecoveryFile)
+	if err != nil {
+		return err
+	}
+	err = utils.CopyFile(abRecoveryGrubCfg12File, filepath.Join(backupMountPoint, abRecoveryGrubCfg12File))
 	if err != nil {
 		return err
 	}
