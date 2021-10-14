@@ -31,6 +31,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -106,6 +107,9 @@ const backupRecordPath = "/var/lib/deepin-ab-recovery/record.json"
 
 var _lastBackUpRecord map[string]string
 var _currentBackUpRecord map[string]string
+
+var _renameFailedMsgRegexp = regexp.MustCompile(`rsync: rename "([0-9a-zA-Z/+.=-]+)" -> "([0-9a-zA-Z/+.=-]+)": Operation not permitted`)
+var _delFailedMsgRegexp = regexp.MustCompile(`rsync: delete_file: unlink[(]([0-9a-zA-Z/+.=-]+)[)] failed: Operation not permitted`)
 
 func init() {
 	flag.BoolVar(&options.noRsync, "no-rsync", false, "")
@@ -411,9 +415,32 @@ func backup(cfg *Config, envVars []string) error {
 		return err
 	}
 	backupExtra()
-
-	err = runRsync(tmpExcludeFile)
+	errMsg, err := runRsync(tmpExcludeFile)
 	if err != nil {
+		allMatchedString := _renameFailedMsgRegexp.FindAllStringSubmatch(errMsg, -1)
+		for _, matchString := range allMatchedString {
+			if len(matchString) == 3 {
+				tempFilePath := matchString[1]
+				destFilePath := matchString[2]
+				if strings.Contains(filepath.Base(tempFilePath), filepath.Base(destFilePath)) {
+					err := exec.Command("chattr", "-i", tempFilePath).Run()
+					if err != nil {
+						logger.Warning(err)
+						continue
+					}
+				}
+			}
+		}
+		allMatchedString = _delFailedMsgRegexp.FindAllStringSubmatch(errMsg, -1)
+		for _, matchString := range allMatchedString {
+			if len(matchString) == 2 {
+				err := exec.Command("chattr", "-i", filepath.Join(backupMountPoint, matchString[1])).Run()
+				if err != nil {
+					logger.Warning(err)
+					continue
+				}
+			}
+		}
 		return xerrors.Errorf("run rsync err: %w", err)
 	}
 
@@ -525,10 +552,11 @@ func backupExtra() {
 	}
 }
 
-func runRsync(excludeFile string) error {
+func runRsync(excludeFile string) (string, error) {
+	var errBuffer bytes.Buffer
 	if options.noRsync {
 		logger.Debug("skip run rsync")
-		return nil
+		return "", nil
 	}
 
 	logger.Debug("run rsync...")
@@ -542,8 +570,10 @@ func runRsync(excludeFile string) error {
 
 	cmd := exec.Command("rsync", rsyncArgs...)
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	cmd.Stderr = &errBuffer
+	cmd.Env = append(cmd.Env, "LC_ALL=C")
+	err := cmd.Run()
+	return errBuffer.String(), err
 }
 
 func backupKernel() (kFiles *kernelFiles, err error) {
