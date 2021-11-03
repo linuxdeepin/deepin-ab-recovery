@@ -43,11 +43,11 @@ import (
 	login1 "github.com/linuxdeepin/go-dbus-factory/org.freedesktop.login1"
 	"golang.org/x/xerrors"
 	"pkg.deepin.io/dde/api/inhibit_hint"
-	"pkg.deepin.io/lib/dbusutil"
-	"pkg.deepin.io/lib/log"
-	"pkg.deepin.io/lib/procfs"
-	"pkg.deepin.io/lib/strv"
-	"pkg.deepin.io/lib/utils"
+	"github.com/linuxdeepin/go-lib/dbusutil"
+	"github.com/linuxdeepin/go-lib/log"
+	"github.com/linuxdeepin/go-lib/procfs"
+	"github.com/linuxdeepin/go-lib/strv"
+	"github.com/linuxdeepin/go-lib/utils"
 )
 
 var logger = log.NewLogger("ab-recovery")

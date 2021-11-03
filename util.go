@@ -36,7 +36,7 @@ import (
 	"time"
 
 	"golang.org/x/xerrors"
-	"pkg.deepin.io/lib/strv"
+	"github.com/linuxdeepin/go-lib/strv"
 )
 
 const (

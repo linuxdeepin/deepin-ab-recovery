@@ -30,7 +30,7 @@ import (
 
 	"github.com/godbus/dbus"
 	"golang.org/x/xerrors"
-	"pkg.deepin.io/lib/dbusutil"
+	"github.com/linuxdeepin/go-lib/dbusutil"
 )
 
 const (
