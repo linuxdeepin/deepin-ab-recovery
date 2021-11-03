@@ -1,5 +1,6 @@
 LANGUAGES = $(basename $(notdir $(wildcard misc/po/*.po)))
 PREFIX = /usr
+export GO111MODULE=off
 
 all: build
 
