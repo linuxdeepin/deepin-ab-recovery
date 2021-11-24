@@ -909,12 +909,6 @@ func restore(cfg *Config, envVars []string) error {
 	initBackUpRecord(backupRecordPath, defaultHospiceDir)
 	recoverDeprecatedFilesOrDirs(backupRecordPath)
 	restoreExtra()
-	// delete cache archive files
-	err = exec.Command("/usr/bin/lastore-apt-clean", "-force-delete").Run()
-	if err != nil {
-		logger.Warning("failed to delete archive files:", err)
-	}
-
 	// swap current and backup
 	cfg.Current, cfg.Backup = cfg.Backup, cfg.Current
 	cfg.Time = nil
