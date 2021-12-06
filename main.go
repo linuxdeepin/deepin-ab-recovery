@@ -423,7 +423,7 @@ func backup(cfg *Config, envVars []string) error {
 				tempFilePath := matchString[1]
 				destFilePath := matchString[2]
 				if strings.Contains(filepath.Base(tempFilePath), filepath.Base(destFilePath)) {
-					err := exec.Command("chattr", "-i", tempFilePath).Run()
+					err := exec.Command("chattr", "-i", filepath.Join(backupMountPoint, destFilePath)).Run()
 					if err != nil {
 						logger.Warning(err)
 						continue
