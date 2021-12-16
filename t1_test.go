@@ -472,7 +472,7 @@ func Test_recoverDeprecatedFilesOrDirs(t *testing.T) {
 		specifiedFiles:  nil,
 	})
 	initBackUpRecord(filepath.Join(originDir, "record.json"), backupDir)
-	recoverDeprecatedFilesOrDirs(filepath.Join(originDir, "record.json"))
+	recoverDeprecatedFilesOrDirs(filepath.Join(originDir, "record.json"), false)
 	assert.DirExists(t, filepath.Join(backupDir, "qwe"))
 	assert.DirExists(t, filepath.Join(backupDir, filepath.Base("/abc/xyz1")))
 }

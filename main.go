@@ -408,7 +408,7 @@ func backup(cfg *Config, envVars []string) error {
 	}
 
 	initBackUpRecord(backupRecordPath, defaultHospiceDir)
-	recoverDeprecatedFilesOrDirs(backupRecordPath)
+	recoverDeprecatedFilesOrDirs(backupRecordPath, false)
 	err = updateBackUpRecordFile(backupRecordPath)
 	if err != nil {
 		logger.Warning(err)
@@ -906,7 +906,7 @@ func restore(cfg *Config, envVars []string) error {
 		return xerrors.Errorf("failed to write grub cfg: %w", err)
 	}
 	initBackUpRecord(backupRecordPath, defaultHospiceDir)
-	recoverDeprecatedFilesOrDirs(backupRecordPath)
+	recoverDeprecatedFilesOrDirs(backupRecordPath, true)
 	restoreExtra()
 	// swap current and backup
 	cfg.Current, cfg.Backup = cfg.Backup, cfg.Current
@@ -1266,7 +1266,8 @@ func getRollbackMenuTextForceEn(osDesc string, backupTime time.Time) string {
 }
 
 // 根据备份记录,还原修改
-func recoverDeprecatedFilesOrDirs(recordPath string) {
+func recoverDeprecatedFilesOrDirs(recordPath string, isRestore bool) {
+	const oldBackupPath = "/usr/share/deepin-ab-recovery/hospice/uos"
 	if !isExist(recordPath) { // 如果不存在该文件,则为兼容旧版本时使用
 		// 兼容 /var/uos文件夹备份改为 /var/uos/os-license文件备份
 		// 处理软链接和非软链接两种情况
@@ -1281,13 +1282,20 @@ func recoverDeprecatedFilesOrDirs(recordPath string) {
 				logger.Warningf("remove origin dir failed: %v", err)
 				return
 			}
-			err = exec.Command("mv", "/usr/share/deepin-ab-recovery/hospice/uos", "/var").Run()
+			err = exec.Command("mv", oldBackupPath, "/var").Run()
 			if err != nil {
 				logger.Warningf("mv backup dir to origin dir failed: %v", err)
 				return
 			}
 		} else {
-			err := os.RemoveAll("/usr/share/deepin-ab-recovery/hospice/uos")
+			if isRestore {
+				err := exec.Command("mv", filepath.Join(oldBackupPath, "os-license"), "/var/uos", "-f").Run() // 将os-license文件还原至备份时候的状态
+				if err != nil {
+					logger.Warningf("only restore os-license failed: %v", err)
+					return
+				}
+			}
+			err := os.RemoveAll(oldBackupPath)
 			if err != nil {
 				logger.Warningf("remove origin dir failed: %v", err)
 				return
@@ -1296,6 +1304,7 @@ func recoverDeprecatedFilesOrDirs(recordPath string) {
 	}
 
 	for originPath, backupPath := range _lastBackUpRecord {
+		// 判断新旧版本备份内容是否存在差异
 		if currentBackupPath, ok := _currentBackUpRecord[originPath]; ok && backupPath == currentBackupPath {
 			continue
 		}
