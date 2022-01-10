@@ -496,7 +496,6 @@ func backup(cfg *Config, envVars []string) error {
 				return xerrors.Errorf("failed to modify rules: %w", err)
 			}
 			foundRules = true
-			break
 		}
 	}
 
