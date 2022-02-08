@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 )
@@ -144,3 +145,18 @@ func modifyRules(filename string, labelUuidMap map[string]string, uuid, otherUui
 	}
 	return nil
 }
+
+func reloadUdev() error {
+	err := exec.Command("udevadm", "control", "--reload-rules").Run()
+	if err != nil {
+		logger.Warning(err)
+		return err
+	}
+	err = exec.Command("udevadm", "trigger").Run()
+	if err != nil {
+		logger.Warning(err)
+		return err
+	}
+	return nil
+}
+

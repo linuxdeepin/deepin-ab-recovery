@@ -40,14 +40,14 @@ import (
 	"./bootloader/grubcfg"
 	"./bootloader/pmoncfg"
 	"github.com/godbus/dbus"
-	login1 "github.com/linuxdeepin/go-dbus-factory/org.freedesktop.login1"
-	"golang.org/x/xerrors"
 	"github.com/linuxdeepin/dde-api/inhibit_hint"
+	login1 "github.com/linuxdeepin/go-dbus-factory/org.freedesktop.login1"
 	"github.com/linuxdeepin/go-lib/dbusutil"
 	"github.com/linuxdeepin/go-lib/log"
 	"github.com/linuxdeepin/go-lib/procfs"
 	"github.com/linuxdeepin/go-lib/strv"
 	"github.com/linuxdeepin/go-lib/utils"
+	"golang.org/x/xerrors"
 )
 
 var logger = log.NewLogger("ab-recovery")
@@ -225,12 +225,12 @@ func mountDevice(device, dir string) (fn func(), err error) {
 func umountDeleteDir(dir string) {
 	err := exec.Command("umount", dir).Run()
 	if err != nil {
-		logWarningf("failed to unmount directory %q: %v", dir, err)
+		logWarningf("failed to umount directory %q: %v", dir, err)
 	}
 
 	err = os.Remove(dir)
 	if err != nil {
-		logWarningf("failed to remove backup mount point: %v", err)
+		logWarningf("failed to remove unmounted directory: %v", err)
 	}
 }
 
@@ -459,48 +459,6 @@ func backup(cfg *Config, envVars []string) error {
 	err = modifyFsTab(filepath.Join(backupMountPoint, "etc/fstab"), backupUuid, backupDevice)
 	if err != nil {
 		return xerrors.Errorf("failed to modify fs tab: %w", err)
-	}
-
-	var rulesPaths = []string{
-		"/etc/udev/rules.d/80-udisks2.rules",
-		"/etc/udev/rules.d/80-udisks-installer.rules",
-	}
-	foundRules := false
-
-	rootDisk, err := getPathDisk("/")
-	if err != nil {
-		return xerrors.Errorf("failed to get root disk: %w", err)
-	}
-
-	labelUuidMap, err := getLabelUuidMap(rootDisk)
-	if err != nil {
-		return xerrors.Errorf("failed to get label uuid map: %w", err)
-	}
-
-	for _, rulesPath := range rulesPaths {
-		_, err = os.Stat(rulesPath)
-		if err == nil {
-			currentDevice, err := getDeviceByUuid(cfg.Current)
-			if err != nil {
-				return xerrors.Errorf("failed to get current device by uuid: %w", err)
-			}
-
-			currentDeviceLabel, err := getDeviceLabel(currentDevice)
-			if err != nil {
-				return xerrors.Errorf("failed to get the label of current device: %w", err)
-			}
-
-			err = modifyRules(filepath.Join(backupMountPoint, rulesPath), labelUuidMap, cfg.Current, backupUuid,
-				currentDeviceLabel)
-			if err != nil {
-				return xerrors.Errorf("failed to modify rules: %w", err)
-			}
-			foundRules = true
-		}
-	}
-
-	if !foundRules {
-		logger.Warning("not found 80-udisks-installer.rules or 80-udisks2.rules")
 	}
 
 	kFiles, err := backupKernel()
@@ -916,6 +874,59 @@ func restore(cfg *Config, envVars []string) error {
 	if err != nil {
 		return xerrors.Errorf("failed to save config file %q: %w", configFile, err)
 	}
+
+	// 还原时，对需要隐藏的分区进行处理: 将备份分区进行隐藏，并解除挂载
+	var rulesPaths = []string{
+		"/etc/udev/rules.d/80-udisks2.rules",
+		"/etc/udev/rules.d/80-udisks-installer.rules",
+	}
+	foundRules := false
+
+	rootDisk, err := getPathDisk("/")
+	if err != nil {
+		return xerrors.Errorf("failed to get root disk: %w", err)
+	}
+
+	labelUuidMap, err := getLabelUuidMap(rootDisk)
+	if err != nil {
+		return xerrors.Errorf("failed to get label uuid map: %w", err)
+	}
+	backupDevice, err := getDeviceByUuid(cfg.Backup)
+	if err != nil {
+		logger.Warning(err)
+		return err
+	}
+	backupLabel, err := getDeviceLabel(backupDevice)
+	if err != nil {
+		logger.Warning(err)
+		return err
+	}
+	for _, rulesPath := range rulesPaths {
+		_, err = os.Stat(rulesPath)
+		if err == nil {
+			err = modifyRules(rulesPath, labelUuidMap, cfg.Backup, cfg.Current, backupLabel)
+			if err != nil {
+				return xerrors.Errorf("failed to modify rules: %w", err)
+			}
+			foundRules = true
+		}
+	}
+	if !foundRules {
+		logger.Warning("not found 80-udisks-installer.rules or 80-udisks2.rules")
+	} else {
+		err = reloadUdev() // 重载udev的rules,让rules的修改生效
+		if err != nil {
+			logger.Warning(err)
+			return err
+		}
+		mountDir, err := getMountPointByLabel(strings.ToLower(strings.TrimSpace(backupLabel)))
+		if err != nil {
+			logger.Warning(err)
+		} else {
+			umountDeleteDir(mountDir)
+		}
+	}
+	// end
 
 	err = os.Remove(filepath.Join("/", backupPartitionMarkFile))
 	if err != nil && !os.IsNotExist(err) {
