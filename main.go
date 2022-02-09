@@ -933,6 +933,8 @@ func restore(cfg *Config, envVars []string) error {
 		return xerrors.Errorf("failed to delete backup partition mark file: %w", err)
 	}
 
+	adapterActivator()
+
 	return nil
 }
 
@@ -1399,5 +1401,17 @@ func initBackUpRecord(recordPath, hospice string) {
 	if err != nil {
 		logger.Warningf("unmarshal %s file to json failed: %v", recordPath, err)
 		return
+	}
+}
+
+// 在还原过程中适配系统激活
+func adapterActivator() {
+	err := exec.Command("pkill", "-ef", "/usr/lib/deepin-daemon/uos-license-agent").Run()
+	if err != nil {
+		logger.Warning("failed to kill uos-license-agent:", err)
+	}
+	err = exec.Command("pkill", "-ef", "/usr/bin/uos-activator").Run()
+	if err != nil {
+		logger.Warning("failed to kill uos-activator:", err)
 	}
 }
