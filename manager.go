@@ -229,17 +229,6 @@ func (m *Manager) startRestore(envVars []string) error {
 		return nil
 	}
 
-	_, err = os.Stat("/var/uos/.licenseadapter")
-	if err == nil {
-		// 系统进行还原操作时，通过root权限运行程序 /var/uos/.licenseadapter
-		err = exec.Command("/var/uos/.licenseadapter").Run()
-		if err != nil {
-			logger.Warning("run /var/uos/.licenseadapter failed", err)
-		}
-	} else {
-		logger.Warning("/var/uos/.licenseadapter stat err: ", err)
-	}
-
 	m.Restoring = true
 	m.PropsMu.Unlock()
 	err = m.emitPropChangedRestoring(true)
