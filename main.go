@@ -934,7 +934,7 @@ func restore(cfg *Config, envVars []string) error {
 	}
 
 	adapterActivator()
-
+	doRestoreHooks()
 	return nil
 }
 
@@ -1415,5 +1415,24 @@ func adapterActivator() {
 		}
 	} else {
 		logger.Warning("/var/uos/.licenseadapter stat err: ", err)
+	}
+}
+
+// /var/lib/deepin-ab-recovery/hooks用于其他模块存放脚本(类似bug 114537的问题)，在进行回滚的时候，执行对应脚本
+func doRestoreHooks() {
+	const restoreHookDir = "/var/lib/deepin-ab-recovery/hooks"
+	infos, err := ioutil.ReadDir(restoreHookDir)
+	if err != nil {
+		logger.Warning(err)
+		return
+	}
+	for _, info := range infos {
+		if !info.IsDir() {
+			path := filepath.Join(restoreHookDir, info.Name())
+			err = exec.Command(path).Run()
+			if err != nil {
+				logger.Warning("run this hook failed: ", err)
+			}
+		}
 	}
 }
