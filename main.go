@@ -96,6 +96,9 @@ var _extraDirs = []extraDir{
 		originDir: "/var/lib/systemd",
 	},
 	{
+		originDir: "/var/lib/dkms",
+	},
+	{
 		originDir: "/var/uos",
 		specifiedFiles: []string{
 			"os-license",
