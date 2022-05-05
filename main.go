@@ -369,7 +369,7 @@ func backup(cfg *Config, envVars []string) error {
 	}()
 
 	skipDirs := []string{
-		"/media", "/tmp", "/proc", "/sys", "/dev", "/run",
+		"/media", "/tmp", "/proc", "/sys", "/dev", "/run", "/mnt", "/boot", "/data", "/lost+found", "/recovery",
 	}
 
 	tmpExcludeFile, err := writeExcludeFile(append(skipDirs, backupMountPoint))
@@ -420,6 +420,7 @@ func backup(cfg *Config, envVars []string) error {
 	backupExtra()
 	errMsg, err := runRsync(tmpExcludeFile)
 	if err != nil {
+		logger.Warning(errMsg)
 		allMatchedString := _renameFailedMsgRegexp.FindAllStringSubmatch(errMsg, -1)
 		for _, matchString := range allMatchedString {
 			if len(matchString) == 3 {
@@ -532,6 +533,7 @@ func runRsync(excludeFile string) (string, error) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = &errBuffer
 	cmd.Env = append(cmd.Env, "LC_ALL=C")
+	logger.Info("run rsync...cmd: ", cmd.String())
 	err := cmd.Run()
 	return errBuffer.String(), err
 }
