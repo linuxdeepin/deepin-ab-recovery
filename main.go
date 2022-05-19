@@ -544,7 +544,13 @@ func backupKernel() (kFiles *kernelFiles, err error) {
 		}
 	}
 
-	err = os.Rename(globalKernelBackupDir, globalKernelBackupDir+".old")
+	// 移除无需要的备份文件
+	err = os.RemoveAll(abKernelBackupDir)
+	if err != nil {
+		logger.Warning(err)
+	}
+
+	err = os.RemoveAll(globalKernelBackupDir)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return
@@ -592,13 +598,6 @@ func backupKernel() (kFiles *kernelFiles, err error) {
 		initrdBackup := filepath.Join(globalKernelBackupDir, filepath.Base(kFiles.initrd))
 		err = utils.CopyFile(kFiles.initrd, initrdBackup)
 		if err != nil {
-			return
-		}
-	}
-
-	err = os.RemoveAll(globalKernelBackupDir + ".old")
-	if err != nil {
-		if !os.IsNotExist(err) {
 			return
 		}
 	}
@@ -816,50 +815,18 @@ func restore(cfg *Config, envVars []string) error {
 		}
 	}
 
-	// 创建备份文件夹
-	err = os.MkdirAll(abKernelBackupDir, 0755)
-	if err != nil {
-		return xerrors.Errorf("failed to make dir %s: %w", abKernelBackupDir, err)
-	}
-
-	// 移动内核文件到/boot/kernel-backup/
-	fileInfoList, err := ioutil.ReadDir(globalBootDir)
-	if err != nil {
-		return xerrors.Errorf("failed to read dir %s: %w", globalBootDir, err)
-	}
-	prefixes := []string{"vmlinuz-", "vmlinux-", "kernel-", "initrd"}
-	for _, fix := range prefixes {
-		for _, info := range fileInfoList {
-			if info.IsDir() {
-				continue
-			}
-			if strings.Contains(info.Name(), fix) {
-				err = os.Rename(filepath.Join(globalBootDir, info.Name()),
-					filepath.Join(abKernelBackupDir, info.Name()))
-				if err != nil {
-					logger.Warning("backup kernel failed:", info.Name(), err)
-				}
-			}
-		}
-	}
-
 	// 将/boot/deepin-ab-recovery文件内核文件移动到 /boot
-	fileInfoList, err = ioutil.ReadDir(globalKernelBackupDir)
+	fileInfoList, err := ioutil.ReadDir(globalKernelBackupDir)
 	if err != nil {
 		return xerrors.Errorf("failed to read dir %s: %w", globalKernelBackupDir, err)
 	}
 
 	for _, info := range fileInfoList {
-		err = utils.CopyFile(filepath.Join(globalKernelBackupDir, info.Name()), filepath.Join(globalBootDir, info.Name()))
+		err = os.Rename(filepath.Join(globalKernelBackupDir, info.Name()), filepath.Join(globalBootDir, info.Name()))
 		if err != nil {
 			logger.Warning("copy recovery file failed:", err)
 			return err
 		}
-	}
-
-	err = os.RemoveAll(globalKernelBackupDir)
-	if err != nil {
-		logger.Warning("Remove dir failed:", globalKernelBackupDir, err)
 	}
 
 	err = writeBootloaderCfgRestore(cfg.Current, currentDevice, cfg.Backup, envVars)
