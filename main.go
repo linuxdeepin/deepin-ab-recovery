@@ -369,7 +369,7 @@ func backup(cfg *Config, envVars []string) error {
 	}()
 
 	skipDirs := []string{
-		"/media", "/tmp", "/proc", "/sys", "/dev", "/run", "/mnt", "/boot", "/data", "/lost+found", "/recovery",
+		"/media", "/tmp", "/proc", "/sys", "/dev", "/run", "/mnt", "/boot", "/data", "/lost+found", "/recovery", "/opt",
 	}
 
 	tmpExcludeFile, err := writeExcludeFile(append(skipDirs, backupMountPoint))
