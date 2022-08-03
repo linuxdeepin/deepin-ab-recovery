@@ -371,8 +371,10 @@ func backup(cfg *Config, envVars []string) error {
 	skipDirs := []string{
 		"/media", "/tmp", "/proc", "/sys", "/dev", "/run", "/mnt", "/boot", "/data", "/lost+found", "/recovery", "/opt",
 	}
-
-	tmpExcludeFile, err := writeExcludeFile(append(skipDirs, backupMountPoint))
+	skipFiles := []string{
+		"/usr/share/deepin-home-appstore-daemon/appstore.db",
+	}
+	tmpExcludeFile, err := writeExcludeFile(append(append(skipDirs, backupMountPoint), skipFiles...))
 	if err != nil {
 		return xerrors.Errorf("failed to write exclude file: %w", err)
 	}
