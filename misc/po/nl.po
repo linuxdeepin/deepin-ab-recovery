@@ -4,7 +4,7 @@
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
 # Translators:
-# Heimen Stoffels <vistausss@outlook.com>, 2021
+# Heimen Stoffels <vistausss@fastmail.com>, 2021
 # Cindy0514, 2021
 # 
 #, fuzzy

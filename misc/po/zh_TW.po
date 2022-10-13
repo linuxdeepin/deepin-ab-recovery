@@ -4,7 +4,7 @@
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
 # Translators:
-# byStarTW (pan93412) <pan93412@gmail.com>, 2021
+# pan93412 <pan93412@gmail.com>, 2021
 # Cindy0514, 2021
 # 
 #, fuzzy

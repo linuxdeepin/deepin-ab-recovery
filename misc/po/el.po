@@ -4,8 +4,9 @@
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
 # Translators:
-# Marcin Kozioł <koziol.martin@gmail.com>, 2021
-# Janusz Ruchała, 2022
+# Jim Gios (Joker) <jgpers@gmail.com>, 2021
+# 457d8bb295cd215bf4b5d4421a7e6f2f_dbd70dd <547531d7e05a062719580f89832ccbd9_785821>, 2021
+# Rosserex <superiorgravelgr@gmail.com>, 2021
 # 
 #, fuzzy
 msgid ""
@@ -14,27 +15,27 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-02-20 11:17+0800\n"
 "PO-Revision-Date: 2021-02-20 03:18+0000\n"
-"Last-Translator: Janusz Ruchała, 2022\n"
-"Language-Team: Polish (https://www.transifex.com/linuxdeepin/teams/3617/pl/)\n"
+"Last-Translator: Rosserex <superiorgravelgr@gmail.com>, 2021\n"
+"Language-Team: Greek (https://www.transifex.com/linuxdeepin/teams/3617/el/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Language: pl\n"
-"Plural-Forms: nplurals=4; plural=(n==1 ? 0 : (n%10>=2 && n%10<=4) && (n%100<12 || n%100>14) ? 1 : n!=1 && (n%10>=0 && n%10<=1) || (n%10>=5 && n%10<=9) || (n%100>=12 && n%100<=14) ? 2 : 3);\n"
+"Language: el\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #: main.go:240
 msgid "Control Center"
-msgstr "Centrum kontroli"
+msgstr "Κέντρο Ελέγχου"
 
 #: manager.go:23
 #, c-format
 msgid "Roll back to %s (%s)"
-msgstr "Przywróć do %s (%s)"
+msgstr "Γυρίστε πίσω στο-α %s (%s)"
 
 #: manager.go:283
 msgid "Backing up the system"
-msgstr "Tworzenie kopii zapasowej systemu"
+msgstr "Αντίγραφο ασφαλείας συστήματος"
 
 #: manager.go:289
 msgid "Restoring the system"
-msgstr "Przywracanie systemu"
+msgstr "Επαναφορά συστήματος"
