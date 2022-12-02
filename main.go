@@ -430,7 +430,7 @@ func backup(cfg *Config, envVars []string) error {
 				}
 			}
 		}
-		return xerrors.Errorf("run rsync err: %w", err)
+		return xerrors.Errorf("run rsync err: %w", errMsg)
 	}
 
 	for _, dir := range skipDirs {
@@ -1045,7 +1045,10 @@ func writeBootloaderCfgBackup(backupUuid, backupDevice, osDesc string,
 	if err != nil {
 		return xerrors.Errorf("failed to write file %q: %w", filename, err)
 	}
-
+	err = prepareRunUpdateGrub(envVars)
+	if err != nil {
+		logger.Warning(err)
+	}
 	err = runUpdateGrub(envVars)
 	if err != nil {
 		return xerrors.Errorf("run update-grub err: %w", err)
