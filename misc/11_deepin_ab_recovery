@@ -181,4 +181,4 @@ if test -e "$dtbo_dirname/dtbo.img"; then
 fi
 
 
-linux_entry "$menu_entry" "${version}" "${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT}"
+linux_entry "$menu_entry" "${version}" "${DEEPIN_AB_RECOVERY_GRUB_CMDLINE}"
