@@ -19,6 +19,7 @@ Depends:
  grub-common,
  mount,
  rsync,
+ jq,
  ${misc:Depends},
  ${shlibs:Depends},
 Description: A/B backup and restore service

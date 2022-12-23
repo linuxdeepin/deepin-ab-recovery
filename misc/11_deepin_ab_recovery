@@ -180,5 +180,6 @@ if test -e "$dtbo_dirname/dtbo.img"; then
 	dtbo=1
 fi
 
-
-linux_entry "$menu_entry" "${version}" "${DEEPIN_AB_RECOVERY_GRUB_CMDLINE}"
+args=$(sh /usr/libexec/deepin-ab-recovery/deepin_ab_recovery_get_backup_grub_args.sh)
+gettext_printf "11_deepin_ab_recovery back grub args: ${args}\n" >&2
+linux_entry "$menu_entry" "${version}" "${args}"
