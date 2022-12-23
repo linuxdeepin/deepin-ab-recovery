@@ -107,23 +107,6 @@ func runUpdateGrub(envVars []string) error {
 	return cmd.Run()
 }
 
-const prepareGrubPath = "/etc/grub.d/9_deepin_prepare_ab"
-
-// prepareRunUpdateGrub 第一次update grub,是为了更新11_deepin_ab_recovery.cfg文件
-func prepareRunUpdateGrub(envVars []string) error {
-	content := `#!/bin/sh
-echo DEEPIN_AB_RECOVERY_GRUB_CMDLINE=\"${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT}\">>/etc/default/grub.d/11_deepin_ab_recovery.cfg`
-	err := ioutil.WriteFile(prepareGrubPath, []byte(content), 0755)
-	if err != nil {
-		return err
-	} else {
-		defer func() {
-			_ = os.RemoveAll(prepareGrubPath)
-		}()
-		return runUpdateGrub(envVars)
-	}
-}
-
 func writeExcludeFile(excludeItems []string) (string, error) {
 	fh, err := ioutil.TempFile("", "deepin-recovery-")
 	if err != nil {

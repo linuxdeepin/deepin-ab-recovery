@@ -22,7 +22,8 @@ install: translate
 		${DESTDIR}/etc/default/grub.d/12_deepin_ab_recovery.cfg
 	install -m 0644 -D misc/com.deepin.ABRecovery.conf ${DESTDIR}${PREFIX}/share/dbus-1/system.d/com.deepin.ABRecovery.conf
 	install -m 0644 -D misc/com.deepin.ABRecovery.service ${DESTDIR}${PREFIX}/share/dbus-1/system-services/com.deepin.ABRecovery.service
-
+	mkdir -p ${DESTDIR}${PREFIX}/libexec/deepin-ab-recovery
+	install -D misc/deepin_ab_recovery_get_backup_grub_args.sh ${DESTDIR}${PREFIX}/libexec/deepin-ab-recovery/deepin_ab_recovery_get_backup_grub_args.sh
 test:
 	go test -v ./...
 
