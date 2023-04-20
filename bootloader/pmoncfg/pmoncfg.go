@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"log"
 	"path"
 	"strconv"
 	"strings"
@@ -34,13 +35,19 @@ type PmonCfg struct {
 const recoveryTitleSuffix = " # ab-recovery"
 const kernelPathPrefix = "/dev/fs/ext2@wd0"
 
-func ParsePmonCfgFile(filename string) (*PmonCfg, error) {
+func ParsePmonCfgFile(filename string) (cfg *PmonCfg, err error) {
 	f, err := os.Open(filename)
 	if err != nil {
-		return nil, err
+		return
 	}
-	defer f.Close()
-
+	defer func() {
+		closeErr := f.Close()
+		if err == nil {
+			err = closeErr
+		} else {
+			log.Printf("ParsePmonCfgFile %v %v", f.Name(), closeErr)
+		}
+	}()
 	cfg := &PmonCfg{}
 
 	var currentMenuEntry *menuEntry
@@ -55,7 +62,7 @@ func ParsePmonCfgFile(filename string) (*PmonCfg, error) {
 		if strings.HasPrefix(line, "default") {
 			cfg.defaultItem, err = strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, "default")))
 			if err != nil {
-				return nil, err
+				return
 			}
 			continue
 		}
@@ -63,7 +70,7 @@ func ParsePmonCfgFile(filename string) (*PmonCfg, error) {
 		if strings.HasPrefix(line, "timeout") {
 			cfg.timeout, err = strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, "timeout")))
 			if err != nil {
-				return nil, err
+				return
 			}
 			continue
 		}
@@ -71,7 +78,7 @@ func ParsePmonCfgFile(filename string) (*PmonCfg, error) {
 		if strings.HasPrefix(line, "showmenu") {
 			cfg.showMenu, err = strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, "showmenu")))
 			if err != nil {
-				return nil, err
+				return
 			}
 			continue
 		}
@@ -89,7 +96,8 @@ func ParsePmonCfgFile(filename string) (*PmonCfg, error) {
 		}
 
 		if currentMenuEntry == nil {
-			return nil, errors.New("failed to parse pmon cfg: menu entries must start with title")
+			err = errors.New("failed to parse pmon cfg: menu entries must start with title")
+			return
 		}
 
 		if strings.HasPrefix(line, "kernel") {
@@ -112,7 +120,7 @@ func ParsePmonCfgFile(filename string) (*PmonCfg, error) {
 		cfg.items = append(cfg.items, currentMenuEntry)
 	}
 
-	return cfg, nil
+	return
 }
 
 func (cfg *PmonCfg) RemoveRecoveryMenuEntries() {
