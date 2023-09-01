@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"log"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -107,13 +108,19 @@ func runUpdateGrub(envVars []string) error {
 	return cmd.Run()
 }
 
-func writeExcludeFile(excludeItems []string) (string, error) {
+func writeExcludeFile(excludeItems []string) (str string, err error) {
 	fh, err := ioutil.TempFile("", "deepin-recovery-")
 	if err != nil {
-		return "", err
+		return
 	}
-	defer fh.Close()
-
+	defer func() {
+		closeErr := fh.Close()
+		if err == nil {
+			err = closeErr
+		} else {
+			log.Printf("writeExcludeFile %v %v", fh.Name(), closeErr)
+		}
+	}()
 	var buf bytes.Buffer
 	for _, item := range excludeItems {
 		buf.WriteString(item)
@@ -122,9 +129,10 @@ func writeExcludeFile(excludeItems []string) (string, error) {
 
 	_, err = buf.WriteTo(fh)
 	if err != nil {
-		return "", err
+		return
 	}
-	return fh.Name(), nil
+	str := fh.Name()
+	return
 }
 
 func hasDiskDevice(uuid string) bool {
